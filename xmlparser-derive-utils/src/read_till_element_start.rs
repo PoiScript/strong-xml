@@ -1,9 +1,8 @@
-use std::iter::Peekable;
-use xmlparser::{Token, Tokenizer};
+use xmlparser::Token;
 
-use crate::{read_to_end, XmlError, XmlResult};
+use crate::{read_to_end, XmlError, XmlReader, XmlResult};
 
-pub fn read_till_element_start(reader: &mut Peekable<Tokenizer<'_>>, tag: &str) -> XmlResult<()> {
+pub fn read_till_element_start(reader: &mut XmlReader<'_>, tag: &str) -> XmlResult<()> {
     while let Some(token) = reader.next() {
         let token = token?;
         match token {
@@ -35,6 +34,8 @@ pub fn read_till_element_start(reader: &mut Peekable<Tokenizer<'_>>, tag: &str) 
 
 #[test]
 fn test_read_till_element_start() -> XmlResult<()> {
+    use xmlparser::Tokenizer;
+
     let mut reader = Tokenizer::from("<tag/>").peekable();
 
     read_till_element_start(&mut reader, "tag")?;

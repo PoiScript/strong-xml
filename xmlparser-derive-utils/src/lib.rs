@@ -11,3 +11,8 @@ pub use self::read_to_end::read_to_end;
 pub use self::xml_error::{XmlError, XmlResult};
 pub use self::xml_escape::xml_escape;
 pub use self::xml_unescape::xml_unescape;
+
+use std::iter::Peekable;
+use xmlparser::Tokenizer;
+
+pub type XmlReader<'a> = Peekable<Tokenizer<'a>>;

@@ -1,9 +1,8 @@
-use std::iter::Peekable;
-use xmlparser::{ElementEnd, Token, Tokenizer};
+use xmlparser::{ElementEnd, Token};
 
-use crate::{XmlError, XmlResult};
+use crate::{XmlError, XmlReader, XmlResult};
 
-pub fn read_to_end(reader: &mut Peekable<Tokenizer<'_>>, tag: &str) -> XmlResult<()> {
+pub fn read_to_end(reader: &mut XmlReader<'_>, tag: &str) -> XmlResult<()> {
     while let Some(token) = reader.next() {
         match token? {
             // if this element is emtpy, just return
@@ -78,6 +77,8 @@ pub fn read_to_end(reader: &mut Peekable<Tokenizer<'_>>, tag: &str) -> XmlResult
 
 #[test]
 fn test_read_to_end() -> XmlResult<()> {
+    use xmlparser::Tokenizer;
+
     let mut reader = Tokenizer::from("<parent><child/></parent>").peekable();
 
     assert!(reader.next().is_some()); // "<parent"
