@@ -7,7 +7,7 @@ and parsing from xml string, based on xmlparser.
 
 ```toml
 xmlparser = "0.13.0"
-xmlparser_derive = "0.1.0"
+xmlparser-derive = "0.1.0"
 ```
 
 ```rust
