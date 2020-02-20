@@ -1,6 +1,6 @@
 [package]
 name = "xmlparser-derive-core"
-version = "0.1.0"
+version = "0.1.1"
 repository = "https://github.com/PoiScript/xmlparser-derive"
 description = "Core of xmlparser-derive. Should not be used directly."
 license = "MIT"
