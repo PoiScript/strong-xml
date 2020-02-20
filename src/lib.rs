@@ -250,3 +250,9 @@
 
 pub use xmlparser_derive_core::{XmlRead, XmlWrite};
 pub use xmlparser_derive_utils::{XmlError, XmlReader, XmlResult};
+
+pub mod utils {
+    pub use xmlparser_derive_utils::{
+        read_text, read_till_element_start, read_to_end, xml_escape, xml_unescape,
+    };
+}

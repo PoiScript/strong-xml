@@ -32,16 +32,16 @@ pub fn derive_xml_read(input: TokenStream) -> TokenStream {
         impl #generics #name #generics {
             fn from_str(
                 string: & #lifetime str
-            ) -> xmlparser_derive_utils::XmlResult<#name #generics> {
+            ) -> xmlparser_derive::XmlResult<#name #generics> {
                 let mut reader = xmlparser::Tokenizer::from(string).peekable();
                 Self::from_reader(&mut reader)
             }
 
             fn from_reader(
-                mut reader: &mut xmlparser_derive_utils::XmlReader #generics
-            ) -> xmlparser_derive_utils::XmlResult<#name #generics> {
+                mut reader: &mut xmlparser_derive::XmlReader #generics
+            ) -> xmlparser_derive::XmlResult<#name #generics> {
                 use xmlparser::{ElementEnd, Token, Tokenizer};
-                use xmlparser_derive_utils::XmlError;
+                use xmlparser_derive::XmlError;
 
                 #impl_read
             }
@@ -64,7 +64,7 @@ pub fn derive_xml_write(input: TokenStream) -> TokenStream {
 
     let gen = quote! {
         impl #generics #name #generics {
-            fn to_string(&self) -> xmlparser_derive_utils::XmlResult<String> {
+            fn to_string(&self) -> xmlparser_derive::XmlResult<String> {
                 let mut writer = vec![];
 
                 self.to_writer(&mut writer)?;
@@ -75,7 +75,7 @@ pub fn derive_xml_write(input: TokenStream) -> TokenStream {
             fn to_writer<W: std::io::Write>(
                 &self,
                 mut writer: W
-            ) -> xmlparser_derive_utils::XmlResult<()> {
+            ) -> xmlparser_derive::XmlResult<()> {
                 #impl_write
 
                 Ok(())

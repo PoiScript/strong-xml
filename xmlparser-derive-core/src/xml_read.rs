@@ -29,7 +29,7 @@ fn read_leaf_element(leaf_ele: &LeafElement) -> TokenStream {
 
         #( #init_attrs )*
 
-        xmlparser_derive_utils::read_till_element_start(&mut reader, #tag)?;
+        xmlparser_derive::utils::read_till_element_start(&mut reader, #tag)?;
 
         while let Some(__token) = reader.next() {
             match __token? {
@@ -79,7 +79,7 @@ fn read_text_element(text_ele: &TextElement) -> TokenStream {
 
         #( #init_attrs )*
 
-        xmlparser_derive_utils::read_till_element_start(&mut reader, #tag)?;
+        xmlparser_derive::utils::read_till_element_start(&mut reader, #tag)?;
 
         while let Some(token) = reader.next() {
             match token? {
@@ -96,7 +96,7 @@ fn read_text_element(text_ele: &TextElement) -> TokenStream {
                     }
                 }
                 Token::ElementEnd { end: ElementEnd::Open, .. } => {
-                    let #text = xmlparser_derive_utils::read_text(&mut reader, #tag)?;
+                    let #text = xmlparser_derive::utils::read_text(&mut reader, #tag)?;
 
                     let __res = #ele_name {
                         #text,
@@ -151,7 +151,7 @@ fn read_parent_element(parent_ele: &ParentElement) -> TokenStream {
         #( #init_children )*
         #( #init_flatten_text )*
 
-        xmlparser_derive_utils::read_till_element_start(&mut reader, #tag)?;
+        xmlparser_derive::utils::read_till_element_start(&mut reader, #tag)?;
 
         while let Some(__token) = reader.next() {
             match __token? {
@@ -181,7 +181,7 @@ fn read_parent_element(parent_ele: &ParentElement) -> TokenStream {
                                         );
                                         // skip the start tag
                                         reader.next();
-                                        xmlparser_derive_utils::read_to_end(reader, __tag)?;
+                                        xmlparser_derive::utils::read_to_end(reader, __tag)?;
                                     },
                                 }
                             }
@@ -346,7 +346,7 @@ fn read_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
                 // skip element start
                 reader.next();
                 log::debug!("Started reading flatten_text {}.", stringify!(#name));
-                #name.push(xmlparser_derive_utils::read_text(&mut reader, #tag)?);
+                #name.push(xmlparser_derive::utils::read_text(&mut reader, #tag)?);
                 log::debug!("Finished reading flatten_text {}.", stringify!(#name));
             }
         },
@@ -355,7 +355,7 @@ fn read_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
                 // skip element start
                 reader.next();
                 log::debug!("Started reading flatten_text {}.", stringify!(#name));
-                #name = Some(xmlparser_derive_utils::read_text(&mut reader, #tag)?);
+                #name = Some(xmlparser_derive::utils::read_text(&mut reader, #tag)?);
                 log::debug!("Finished reading flatten_text {}.", stringify!(#name));
             }
         },
@@ -396,7 +396,7 @@ fn read_enum_element(enum_ele: &EnumElement) -> TokenStream {
                             );
                             // skip the start tag
                             reader.next();
-                            xmlparser_derive_utils::read_to_end(reader, __tag)?;
+                            xmlparser_derive::utils::read_to_end(reader, __tag)?;
                         }
                     }
                 },

@@ -66,7 +66,7 @@ fn write_text_ele(text_ele: &TextElement) -> TokenStream {
 
         write!(&mut writer, ">")?;
 
-        write!(&mut writer, "{}", xmlparser_derive_utils::xml_escape(&self.#text))?;
+        write!(&mut writer, "{}", xmlparser_derive::utils::xml_escape(&self.#text))?;
 
         write!(&mut writer, concat!("</", #tag, ">"))?;
 
@@ -170,7 +170,7 @@ fn write_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
         Type::CowStr => quote! {
             write!(&mut writer, concat!("<" , #tag, ">"))?;
 
-            write!(&mut writer, "{}", xmlparser_derive_utils::xml_escape(&self.#name))?;
+            write!(&mut writer, "{}", xmlparser_derive::utils::xml_escape(&self.#name))?;
 
             write!(&mut writer, concat!("</" , #tag, ">"))?;
         },
@@ -178,7 +178,7 @@ fn write_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
             if let Some(value) = &self.#name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
 
-                write!(&mut writer, "{}", xmlparser_derive_utils::xml_escape(&value))?;
+                write!(&mut writer, "{}", xmlparser_derive::utils::xml_escape(&value))?;
 
                 write!(&mut writer, concat!("</" , #tag, ">"))?;
             }
@@ -187,7 +187,7 @@ fn write_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
            for value in &self.#name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
 
-                write!(&mut writer, "{}", xmlparser_derive_utils::xml_escape(&value))?;
+                write!(&mut writer, "{}", xmlparser_derive::utils::xml_escape(&value))?;
 
                 write!(&mut writer, concat!("</" , #tag, ">"))?;
             }
