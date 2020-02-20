@@ -1,7 +1,2 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub use xmlparser_derive_core::{XmlRead, XmlWrite};
+pub use xmlparser_derive_utils::{XmlError, XmlRead, XmlReader, XmlResult, XmlWrite};
