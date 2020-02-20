@@ -1,0 +1,15 @@
+[package]
+name = "xmlparser-derive-core"
+version = "0.1.0"
+authors = ["PoiScript <poiscript@gmail.com>"]
+edition = "2018"
+
+[lib]
+name = "xmlparser_derive_core"
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0.8"
+quote = "1.0.2"
+syn = "1.0.14"
+xmlparser = "0.13.0"
