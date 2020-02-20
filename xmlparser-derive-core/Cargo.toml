@@ -1,6 +1,9 @@
 [package]
 name = "xmlparser-derive-core"
 version = "0.1.0"
+repository = "https://github.com/PoiScript/xmlparser-derive"
+description = "Core of xmlparser-derive. Should not be used directly."
+license = "MIT"
 authors = ["PoiScript <poiscript@gmail.com>"]
 edition = "2018"
 
