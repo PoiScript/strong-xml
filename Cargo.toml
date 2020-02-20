@@ -7,7 +7,7 @@ members = [
 
 [package]
 name = "xmlparser-derive"
-version = "0.1.1"
+version = "0.1.2"
 repository = "https://github.com/PoiScript/xmlparser-derive"
 description = "A proc macro to generate functions for writing to and parsing from xml string, based on xmlparser."
 license = "MIT"
