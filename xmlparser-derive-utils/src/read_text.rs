@@ -1,9 +1,13 @@
+use std::borrow::Cow;
 use std::iter::Peekable;
 use xmlparser::{ElementEnd, Token, Tokenizer};
 
-use crate::{XmlError, XmlResult};
+use crate::{xml_unescape, XmlError, XmlResult};
 
-pub fn read_text<'a>(reader: &mut Peekable<Tokenizer<'a>>, tag: &'a str) -> XmlResult<&'a str> {
+pub fn read_text<'a>(
+    reader: &mut Peekable<Tokenizer<'a>>,
+    tag: &'a str,
+) -> XmlResult<Cow<'a, str>> {
     let mut res = None;
 
     while let Some(token) = reader.next() {
@@ -14,7 +18,7 @@ pub fn read_text<'a>(reader: &mut Peekable<Tokenizer<'a>>, tag: &'a str) -> XmlR
             }
             | Token::Attribute { .. } => (),
             Token::Text { text } => {
-                res = Some(text.as_str());
+                res = Some(xml_unescape(text.as_str())?);
             }
             Token::ElementEnd {
                 end: ElementEnd::Close(_, _),
