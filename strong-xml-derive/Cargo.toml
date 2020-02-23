@@ -1,18 +1,17 @@
 [package]
-name = "xmlparser-derive-core"
+name = "strong-xml-derive"
 version = "0.1.2"
-repository = "https://github.com/PoiScript/xmlparser-derive"
-description = "Core of xmlparser-derive. Should not be used directly."
+repository = "https://github.com/PoiScript/strong-xml"
+description = "Derive marco of strong-xml."
 license = "MIT"
 authors = ["PoiScript <poiscript@gmail.com>"]
 edition = "2018"
 
 [lib]
-name = "xmlparser_derive_core"
+name = "strong_xml_derive"
 proc-macro = true
 
 [dependencies]
 proc-macro2 = "1.0.8"
 quote = "1.0.2"
 syn = { version = "1.0.14", features = ["extra-traits"] }
-xmlparser = "0.13.0"

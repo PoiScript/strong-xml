@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use xmlparser_derive::{XmlRead, XmlResult, XmlWrite};
+use strong_xml::{XmlRead, XmlResult, XmlWrite};
 
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 #[xml(tag = "tag1")]

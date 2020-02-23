@@ -1,6 +1,7 @@
 use xmlparser::Token;
 
-use crate::{read_to_end, XmlError, XmlReader, XmlResult};
+use crate::read_to_end::read_to_end;
+use crate::{XmlError, XmlReader, XmlResult};
 
 pub fn read_till_element_start(reader: &mut XmlReader<'_>, tag: &str) -> XmlResult<()> {
     while let Some(token) = reader.next() {

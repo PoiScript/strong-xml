@@ -1,7 +1,8 @@
 use std::borrow::Cow;
 use xmlparser::{ElementEnd, Token};
 
-use crate::{xml_unescape, XmlError, XmlReader, XmlResult};
+use crate::xml_unescape::xml_unescape;
+use crate::{XmlError, XmlReader, XmlResult};
 
 pub fn read_text<'a>(reader: &mut XmlReader<'a>, tag: &'a str) -> XmlResult<Cow<'a, str>> {
     let mut res = None;

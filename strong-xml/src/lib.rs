@@ -1,16 +1,15 @@
-//! A proc macro to generate functions for writing to
-//! and parsing from xml string, based on xmlparser.
+//! Strong typed xml, based on xmlparser.
 //!
 //! ## Quick Start
 //!
 //! ```toml
 //! xmlparser = "0.13.0"
-//! xmlparser-derive = "0.1.0"
+//! strong-xml = "0.1.0"
 //! ```
 //!
 //! ```rust
 //! use std::borrow::Cow;
-//! use xmlparser_derive::{XmlRead, XmlWrite};
+//! use strong_xml::{XmlRead, XmlWrite};
 //!
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "parent")]
@@ -48,7 +47,7 @@
 //! Specifies the xml tag of a struct or an enum variant.
 //!
 //! ```rust
-//! # use xmlparser_derive::{XmlRead, XmlWrite};
+//! # use strong_xml::{XmlRead, XmlWrite};
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "parent")]
 //! struct Parent {}
@@ -65,7 +64,7 @@
 //! ```
 //!
 //! ```rust
-//! # use xmlparser_derive::{XmlRead, XmlWrite};
+//! # use strong_xml::{XmlRead, XmlWrite};
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "tag1")]
 //! struct Tag1 {}
@@ -101,7 +100,7 @@
 //! `T: std::str::FromStr`.
 //!
 //! ```rust
-//! use xmlparser_derive::{XmlRead, XmlWrite};
+//! use strong_xml::{XmlRead, XmlWrite};
 //!
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "parent")]
@@ -126,7 +125,7 @@
 //! Specifies that a sturct is leaf element.
 //!
 //! ```rust
-//! # use xmlparser_derive::{XmlRead, XmlWrite};
+//! # use strong_xml::{XmlRead, XmlWrite};
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(leaf, tag = "leaf")]
 //! struct Leaf {}
@@ -148,7 +147,7 @@
 //! `T`, `Option<T>`, `Vec<T>` where `T: XmlRead + XmlWrite`.
 //!
 //! ```rust
-//! use xmlparser_derive::{XmlRead, XmlWrite};
+//! use strong_xml::{XmlRead, XmlWrite};
 //!
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "tag1")]
@@ -197,7 +196,7 @@
 //!
 //! ```rust
 //! use std::borrow::Cow;
-//! use xmlparser_derive::{XmlRead, XmlWrite};
+//! use strong_xml::{XmlRead, XmlWrite};
 //!
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "parent")]
@@ -224,7 +223,7 @@
 //!
 //! ```rust
 //! use std::borrow::Cow;
-//! use xmlparser_derive::{XmlRead, XmlWrite};
+//! use strong_xml::{XmlRead, XmlWrite};
 //!
 //! #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 //! #[xml(tag = "parent")]
@@ -248,11 +247,26 @@
 //!
 //! MIT
 
-pub use xmlparser_derive_core::{XmlRead, XmlWrite};
-pub use xmlparser_derive_utils::{XmlError, XmlReader, XmlResult};
+mod read_text;
+mod read_till_element_start;
+mod read_to_end;
+mod xml_error;
+mod xml_escape;
+mod xml_unescape;
+
+pub use self::xml_error::{XmlError, XmlResult};
+
+use std::iter::Peekable;
+use xmlparser::Tokenizer;
+
+pub type XmlReader<'a> = Peekable<Tokenizer<'a>>;
+
+pub use strong_xml_derive::{XmlRead, XmlWrite};
 
 pub mod utils {
-    pub use xmlparser_derive_utils::{
-        read_text, read_till_element_start, read_to_end, xml_escape, xml_unescape,
-    };
+    pub use super::read_text::read_text;
+    pub use super::read_till_element_start::read_till_element_start;
+    pub use super::read_to_end::read_to_end;
+    pub use super::xml_escape::xml_escape;
+    pub use super::xml_unescape::xml_unescape;
 }
