@@ -13,7 +13,7 @@ edition = "2018"
 jetscii = "0.4.4"
 lazy_static = "1.4.0"
 log = "0.4.8"
-memchr = "2.3.2"
+memchr = "2.3.3"
 strong-xml-derive = { version = "0.1.0", path = "../strong-xml-derive" }
 xmlparser = "0.13.0"
 
