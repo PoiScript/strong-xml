@@ -7,7 +7,7 @@ use crate::{XmlError, XmlReader, XmlResult};
 pub fn read_text<'a>(reader: &mut XmlReader<'a>, tag: &'a str) -> XmlResult<Cow<'a, str>> {
     let mut res = None;
 
-    while let Some(token) = reader.next() {
+    for token in reader {
         match token? {
             Token::ElementEnd {
                 end: ElementEnd::Open,

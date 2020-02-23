@@ -58,7 +58,7 @@ fn recognize(entity: &str, result: &mut String) -> XmlResult<()> {
         _ => {
             let val = if entity.starts_with("#x") {
                 u32::from_str_radix(&entity[2..], 16).ok()
-            } else if entity.starts_with("#") {
+            } else if entity.starts_with('#') {
                 u32::from_str_radix(&entity[1..], 10).ok()
             } else {
                 None

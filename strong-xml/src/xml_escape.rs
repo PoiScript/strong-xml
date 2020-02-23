@@ -2,7 +2,7 @@ use jetscii::{bytes, BytesConst};
 use lazy_static::lazy_static;
 use std::borrow::Cow;
 
-pub fn xml_escape<'a>(raw: &'a str) -> Cow<'a, str> {
+pub fn xml_escape(raw: &str) -> Cow<'_, str> {
     lazy_static! {
         static ref ESCAPE_BYTES: BytesConst = bytes!(b'<', b'>', b'&', b'\'', b'"');
     }

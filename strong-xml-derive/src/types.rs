@@ -124,7 +124,7 @@ impl Element {
             }
         }
 
-        let tag = tag.expect(&format!("Struct doesn't have tag attribute."));
+        let tag = tag.expect("Struct doesn't have tag attribute.");
 
         if leaf {
             if text.is_none() && children.is_empty() {
@@ -166,7 +166,7 @@ impl Element {
 
         for variant in &data.variants {
             let name = &variant.ident;
-            let ty = &variant.fields.iter().nth(0).unwrap().ty;
+            let ty = &variant.fields.iter().next().unwrap().ty;
 
             for meta in variant.attrs.iter().filter_map(get_xml_meta).flatten() {
                 match meta {
