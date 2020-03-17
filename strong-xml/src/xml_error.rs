@@ -4,7 +4,6 @@ use std::{
     str::{ParseBoolError, Utf8Error},
     string::FromUtf8Error,
 };
-
 use xmlparser::Error as ParserError;
 
 #[derive(Debug)]
