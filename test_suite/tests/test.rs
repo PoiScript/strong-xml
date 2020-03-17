@@ -12,7 +12,6 @@ struct Tag1<'a> {
 
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 #[xml(tag = "tag2")]
-#[xml(leaf)]
 struct Tag2<'a> {
     #[xml(attr = "att1")]
     att1: Cow<'a, str>,
