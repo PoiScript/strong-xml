@@ -1,156 +1,123 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::LitStr;
+use syn::{Ident, LitStr};
 
-use crate::types::{Element, EnumElement, Field, LeafElement, ParentElement, TextElement, Type};
+use crate::types::{Element, EnumElement, StructElement, Type};
 
 pub fn write(element: &Element) -> TokenStream {
     match element {
-        Element::Leaf(leaf_ele) => write_leaf_ele(leaf_ele),
-        Element::Text(text_ele) => write_text_ele(text_ele),
-        Element::Parent(parent_ele) => write_parent_ele(parent_ele),
         Element::Enum(enum_ele) => write_enum_ele(enum_ele),
+        Element::Struct(struct_ele) => write_struct_ele(struct_ele),
     }
 }
 
-fn write_leaf_ele(leaf_ele: &LeafElement) -> TokenStream {
-    let ele_name = &leaf_ele.name;
-    let tag = &leaf_ele.tag;
-    let attrs = &leaf_ele.attributes;
+fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
+    let ele_name = &struct_ele.name;
+    let tag = &struct_ele.tag;
+    let attr_fields = &struct_ele.attributes;
+    let child_fields = &struct_ele.children;
+    let flatten_text_fields = &struct_ele.flatten_text;
+    let text_field = &struct_ele.text;
 
-    let extend_attrs = if let Some(extend_attrs) = &leaf_ele.extend_attrs {
-        quote! { #extend_attrs(&self, &mut writer)?; }
-    } else {
-        quote!()
-    };
+    let extend_attrs = &struct_ele
+        .extend_attrs
+        .as_ref()
+        .map(|extend_attrs| quote! { #extend_attrs(&self, &mut writer)?; });
 
-    let write_attrs = attrs.iter().map(|(fld, tag)| write_attrs(fld, tag));
-
-    quote! {
-        log::debug!("Started writing LeafElement {}.", stringify!(#ele_name));
-
-        write!(&mut writer, concat!("<", #tag))?;
-
-        #( #write_attrs )*
-
-        #extend_attrs
-
-        write!(&mut writer, "/>")?;
-
-        log::debug!("Finished writing LeafElement {}.", stringify!(#ele_name));
-    }
-}
-
-fn write_text_ele(text_ele: &TextElement) -> TokenStream {
-    let ele_name = &text_ele.name;
-    let tag = &text_ele.tag;
-    let attrs = &text_ele.attributes;
-    let text = &text_ele.text.name;
-
-    let extend_attrs = if let Some(extend_attrs) = &text_ele.extend_attrs {
-        quote! { #extend_attrs(&self, &mut writer)?; }
-    } else {
-        quote!()
-    };
-
-    let write_attrs = attrs.iter().map(|(fld, tag)| write_attrs(fld, tag));
-
-    quote! {
-        log::debug!("Started writing TextElement {}.", stringify!(#ele_name));
-
-        write!(&mut writer, concat!("<", #tag))?;
-
-        #( #write_attrs )*
-
-        #extend_attrs
-
-        write!(&mut writer, ">")?;
-
-        write!(&mut writer, "{}", strong_xml::utils::xml_escape(&self.#text))?;
-
-        write!(&mut writer, concat!("</", #tag, ">"))?;
-
-        log::debug!("Finished writing TextElement {}.", stringify!(#ele_name));
-    }
-}
-
-fn write_parent_ele(parent_ele: &ParentElement) -> TokenStream {
-    let ele_name = &parent_ele.name;
-    let tag = &parent_ele.tag;
-    let attrs = &parent_ele.attributes;
-    let flatten_text = &parent_ele.flatten_text;
-    let children = &parent_ele.children;
-
-    let mut children = children.iter().map(|e| &e.1).collect::<Vec<_>>();
-    children.dedup_by_key(|f| &f.name);
-
-    let extend_attrs = if let Some(extend_attrs) = &parent_ele.extend_attrs {
-        quote! { #extend_attrs(&self, &mut writer)?; }
-    } else {
-        quote!()
-    };
-
-    let write_attrs = attrs.iter().map(|(fld, tag)| write_attrs(fld, tag));
-    let write_children = children.iter().map(|fld| write_child(fld));
-    let write_flatten_text = flatten_text
+    let write_attr_fields = attr_fields
         .iter()
-        .map(|(tag, fld)| write_flatten_text(tag, fld));
+        .map(|e| write_attrs(&e.tag, &e.name, &e.ty));
+
+    let is_leaf_element =
+        child_fields.is_empty() && flatten_text_fields.is_empty() && text_field.is_none();
+
+    let can_be_self_close = child_fields
+        .iter()
+        .map(|e| &e.ty)
+        .chain(flatten_text_fields.iter().map(|e| &e.ty))
+        .all(|ty| matches!(ty, Type::VecCowStr | Type::VecT(_) | Type::OptionT(_) | Type::OptionCowStr | Type::OptionBool | Type::OptionUsize));
+
+    let write_element_end = if is_leaf_element {
+        quote! { write!(&mut writer, "/>")?; }
+    } else if let Some(text_field) = text_field {
+        let name = &text_field.name;
+        quote! {
+            write!(&mut writer, concat!(">{}</", #tag, ">"), self.#name)?;
+        }
+    } else {
+        let content_is_empty = child_fields
+            .iter()
+            .map(|e| (&e.name, &e.ty))
+            .chain(flatten_text_fields.iter().map(|e| (&e.name, &e.ty)))
+            .flat_map(|(name, ty)| match ty {
+                Type::VecCowStr | Type::VecT(_) => Some(quote! { self.#name.is_empty() }),
+                Type::OptionT(_) | Type::OptionCowStr | Type::OptionBool | Type::OptionUsize => {
+                    Some(quote! { self.#name.is_none() })
+                }
+                _ => None,
+            });
+
+        let write_child_fields = child_fields.iter().map(|e| write_child(&e.name, &e.ty));
+
+        let write_flatten_text_fields = flatten_text_fields
+            .iter()
+            .map(|e| write_flatten_text(&e.tag, &e.name, &e.ty));
+
+        quote! {
+            if #can_be_self_close #( && #content_is_empty )* {
+                write!(&mut writer, "/>")?;
+            } else {
+                write!(&mut writer, ">")?;
+                #( #write_child_fields )*
+                #( #write_flatten_text_fields )*
+                write!(&mut writer, concat!("</", #tag, ">"))?;
+            }
+        }
+    };
 
     quote! {
-        log::debug!("Started writing ParentElement {}.", stringify!(#ele_name));
+        log::debug!(concat!("[", stringify!(#ele_name), "] Started writing."));
 
         write!(&mut writer, concat!("<", #tag))?;
 
-        #( #write_attrs )*
+        #( #write_attr_fields )*
 
         #extend_attrs
 
-        write!(&mut writer, ">")?;
+        #write_element_end
 
-        #( #write_children )*
-        #( #write_flatten_text )*
-
-        write!(&mut writer, concat!("</", #tag, ">"))?;
-
-        log::debug!("Finished writing ParentElement {}.", stringify!(#ele_name));
+        log::debug!(concat!("[", stringify!(#ele_name), "] Finished writing."));
     }
 }
 
-fn write_attrs(tag: &LitStr, field: &Field) -> TokenStream {
-    let name = &field.name;
-
-    match field.ty {
+fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+    match ty {
         Type::OptionCowStr | Type::OptionBool | Type::OptionUsize => quote! {
             if let Some(ref value) = self.#name {
-                write!(&mut writer, concat!(" ", #tag, "=", "\"{}\""), value)?;
+                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), value)?;
             }
         },
-        Type::CowStr | Type::Bool | Type::Usize => quote! {
-            write!(&mut writer, concat!(" ", #tag, "=", "\"{}\""), self.#name)?;
+        Type::CowStr | Type::Bool | Type::Usize | Type::T(_) => quote! {
+            write!(&mut writer, concat!(" ", #tag, "=\"{}\""), self.#name)?;
         },
         Type::OptionT(_) => quote! {
             if let Some(ref value) = self.#name {
-                write!(&mut writer, concat!(" ", #tag, "=", "\"{}\""), value)?;
+                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), value)?;
             }
         },
-        Type::T(_) => quote! {
-            write!(&mut writer, concat!(" ", #tag, "=", "\"{}\""), self.#name)?;
-        },
-        _ => panic!("#[xml(attr = \"\")] only supports Cow<str>, Option<Cow<str>>, bool, Option<bool>, usize, Option<usize> and Option<T>."),
+        _ => panic!(
+            "#[xml(attr = \"\")] only supports Cow<str>, Option<Cow<str>>, bool, Option<bool>, usize, Option<usize> and Option<T>."
+        ),
     }
 }
 
-fn write_child(field: &Field) -> TokenStream {
-    let name = &field.name;
-
-    match &field.ty {
-        Type::OptionT(_) => {
-            quote! {
-                if let Some(ref ele) = self.#name {
-                    ele.to_writer(&mut writer)?;
-                }
+fn write_child(name: &Ident, ty: &Type) -> TokenStream {
+    match ty {
+        Type::OptionT(_) => quote! {
+            if let Some(ref ele) = self.#name {
+                ele.to_writer(&mut writer)?;
             }
-        }
+        },
         Type::VecT(_) => quote! {
             for ele in &self.#name {
                 ele.to_writer(&mut writer)?;
@@ -163,10 +130,8 @@ fn write_child(field: &Field) -> TokenStream {
     }
 }
 
-fn write_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
-    let name = &field.name;
-
-    match &field.ty {
+fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+    match ty {
         Type::CowStr => quote! {
             write!(&mut writer, concat!("<" , #tag, ">"))?;
 
@@ -200,7 +165,7 @@ fn write_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
 
 fn write_enum_ele(enum_ele: &EnumElement) -> TokenStream {
     let name = &enum_ele.name;
-    let var_names = enum_ele.elements.iter().map(|(_, var)| &var.name);
+    let var_names = enum_ele.elements.iter().map(|var| &var.name);
 
     quote! {
         match self {

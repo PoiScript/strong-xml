@@ -5,48 +5,62 @@ use syn::{Lit::*, Meta::*, *};
 #[allow(clippy::large_enum_variant)]
 pub enum Element {
     Enum(EnumElement),
-    Leaf(LeafElement),
-    Text(TextElement),
-    Parent(ParentElement),
+    Struct(StructElement),
+}
+
+pub struct EnumElement {
+    pub name: Ident,
+    pub elements: Vec<Variant>,
 }
 
 pub struct Variant {
     pub name: Ident,
     pub ty: syn::Type,
+    pub tags: Vec<LitStr>,
 }
 
-pub struct Field {
+pub struct StructElement {
+    pub name: Ident,
+    pub tag: LitStr,
+    pub extend_attrs: Option<Ident>,
+    pub attributes: Vec<AttributeField>,
+    pub children: Vec<ChildrenField>,
+    pub flatten_text: Vec<FlattenTextField>,
+    pub text: Option<TextField>,
+}
+
+// #[xml(attr = "attr", default)]
+// key: Vec<_>
+pub struct AttributeField {
     pub name: Ident,
     pub ty: Type,
-}
-
-pub struct EnumElement {
-    pub name: Ident,
-    pub elements: Vec<(LitStr, Variant)>,
-}
-
-pub struct LeafElement {
-    pub name: Ident,
     pub tag: LitStr,
-    pub extend_attrs: Option<Ident>,
-    pub attributes: Vec<(LitStr, Field)>,
+    pub default: bool,
 }
 
-pub struct TextElement {
+// #[xml(child = "t1", child = "t2", default)]
+// key: Vec<_>
+pub struct ChildrenField {
     pub name: Ident,
-    pub tag: LitStr,
-    pub extend_attrs: Option<Ident>,
-    pub attributes: Vec<(LitStr, Field)>,
-    pub text: Field,
+    pub ty: Type,
+    pub default: bool,
+    pub tags: Vec<LitStr>,
 }
 
-pub struct ParentElement {
+// #[xml(faltten_text = "t", default)]
+// key: Vec<_>
+pub struct FlattenTextField {
     pub name: Ident,
+    pub ty: Type,
+    pub default: bool,
     pub tag: LitStr,
-    pub extend_attrs: Option<Ident>,
-    pub attributes: Vec<(LitStr, Field)>,
-    pub children: Vec<(LitStr, Field)>,
-    pub flatten_text: Vec<(LitStr, Field)>,
+}
+
+// #[xml(text)]
+// key: Cow<>
+pub struct TextField {
+    pub name: Ident,
+    pub ty: Type,
 }
 
 impl Element {
@@ -59,28 +73,38 @@ impl Element {
     }
 
     pub fn parse_struct(data: &DataStruct, attrs: &[Attribute], ident: &Ident) -> Element {
-        let mut leaf = false;
         let mut tag = None;
         let mut extend_attrs = None;
 
         for meta in attrs.iter().filter_map(get_xml_meta).flatten() {
             match meta {
-                NestedMeta::Meta(Path(ref p)) if p.is_ident("leaf") => {
-                    leaf = true;
-                }
                 NestedMeta::Meta(NameValue(ref m)) if m.path.is_ident("tag") => {
                     if let Str(ref lit) = m.lit {
-                        tag = Some(lit.clone());
+                        if tag.is_some() {
+                            panic!("Duplicate `tag` attribute.");
+                        } else {
+                            tag = Some(lit.clone());
+                        }
+                    } else {
+                        panic!("Expected a string literal.");
                     }
                 }
                 NestedMeta::Meta(NameValue(ref m)) if m.path.is_ident("extend_attrs") => {
                     if let Str(ref lit) = m.lit {
-                        extend_attrs = Some(Ident::new(&lit.value(), Span::call_site()));
+                        if extend_attrs.is_some() {
+                            panic!("Duplicate `extend_attrs` attribute.");
+                        } else {
+                            extend_attrs = Some(Ident::new(&lit.value(), Span::call_site()));
+                        }
+                    } else {
+                        panic!("Expected a string literal.");
                     }
                 }
-                item => panic!("Unsupported attrs: {:?}.", item),
+                _ => (),
             }
         }
+
+        let tag = tag.expect("Missing `tag` attribute.");
 
         let mut attributes = Vec::new();
         let mut text = None;
@@ -88,77 +112,141 @@ impl Element {
         let mut flatten_text = Vec::new();
 
         for field in data.fields.iter() {
-            let name = &field.ident;
-            let ty = &field.ty;
+            let mut default = false;
+            let mut attr_tag = None;
+            let mut child_tags = Vec::new();
+            let mut is_text = false;
+            let mut flatten_text_tag = None;
 
             for meta in field.attrs.iter().filter_map(get_xml_meta).flatten() {
-                let field = Field {
-                    name: name.clone().unwrap(),
-                    ty: ty.into(),
-                };
-
                 match meta {
+                    NestedMeta::Meta(Path(ref p)) if p.is_ident("default") => {
+                        if default {
+                            panic!("Duplicate `default` attribute.");
+                        } else {
+                            default = true;
+                        }
+                    }
                     NestedMeta::Meta(NameValue(ref m)) if m.path.is_ident("attr") => {
                         if let Str(ref lit) = m.lit {
-                            attributes.push((lit.clone(), field));
+                            if attr_tag.is_some() {
+                                panic!("Duplicate `attr` attribute.");
+                            } else if is_text {
+                                panic!("`attr` attribute and `text` attribute is disjoint.");
+                            } else if !child_tags.is_empty() {
+                                panic!("`attr` attribute and `child` attribute is disjoint.");
+                            } else if flatten_text_tag.is_some() {
+                                panic!(
+                                    "`attr` attribute and `flatten_text` attribute is disjoint."
+                                );
+                            } else {
+                                attr_tag = Some(lit.clone());
+                            }
+                        } else {
+                            panic!("Expected a string literal.");
                         }
                     }
                     NestedMeta::Meta(Path(ref p)) if p.is_ident("text") => {
-                        text = Some(field);
+                        if is_text {
+                            panic!("Duplicate `text` attribute.");
+                        } else if attr_tag.is_some() {
+                            panic!("`text` attribute and `attr` attribute is disjoint.");
+                        } else if !child_tags.is_empty() {
+                            panic!("`text` attribute and `child` attribute is disjoint.");
+                        } else if flatten_text_tag.is_some() {
+                            panic!("`text` attribute and `flatten_text` attribute is disjoint.");
+                        } else {
+                            is_text = true;
+                        }
                     }
                     NestedMeta::Meta(NameValue(ref m)) if m.path.is_ident("child") => {
                         if let Str(ref lit) = m.lit {
-                            children.push((lit.clone(), field));
+                            if is_text {
+                                panic!("`child` attribute and `text` attribute is disjoint.");
+                            } else if attr_tag.is_some() {
+                                panic!("`child` attribute and `attr` attribute is disjoint.");
+                            } else if flatten_text_tag.is_some() {
+                                panic!(
+                                    "`child` attribute and `flatten_text` attribute is disjoint."
+                                );
+                            } else {
+                                child_tags.push(lit.clone());
+                            }
+                        } else {
+                            panic!("Expected a string literal.");
                         }
                     }
                     NestedMeta::Meta(NameValue(ref m)) if m.path.is_ident("flatten_text") => {
                         if let Str(ref lit) = m.lit {
-                            flatten_text.push((lit.clone(), field));
+                            if is_text {
+                                panic!(
+                                    "`flatten_text` attribute and `text` attribute is disjoint."
+                                );
+                            } else if !child_tags.is_empty() {
+                                panic!(
+                                    "`flatten_text` attribute and `child` attribute is disjoint."
+                                );
+                            } else if attr_tag.is_some() {
+                                panic!(
+                                    "`flatten_text` attribute and `attr` attribute is disjoint."
+                                );
+                            } else if flatten_text_tag.is_some() {
+                                panic!("Duplicate `flatten_text` attribute.");
+                            }
+                            flatten_text_tag = Some(lit.clone());
+                        } else {
+                            panic!("Expected a string literal.");
                         }
                     }
-                    meta => panic!(
-                        "Unkown attribute {:?} when parsing field {}.",
-                        meta, field.name,
-                    ),
+                    _ => (),
                 }
             }
+
+            if let Some(tag) = attr_tag {
+                attributes.push(AttributeField {
+                    name: field.ident.clone().unwrap(),
+                    ty: (&field.ty).into(),
+                    tag,
+                    default,
+                });
+            } else if !child_tags.is_empty() {
+                children.push(ChildrenField {
+                    name: field.ident.clone().unwrap(),
+                    ty: (&field.ty).into(),
+                    default,
+                    tags: child_tags,
+                });
+            } else if is_text {
+                if text.is_some() {
+                    panic!("Duplicate `text` field.");
+                }
+                text = Some(TextField {
+                    name: field.ident.clone().unwrap(),
+                    ty: (&field.ty).into(),
+                });
+            } else if let Some(tag) = flatten_text_tag {
+                flatten_text.push(FlattenTextField {
+                    name: field.ident.clone().unwrap(),
+                    ty: (&field.ty).into(),
+                    default,
+                    tag,
+                });
+            } else {
+                panic!(
+                    "Field should have one of `attr`, `child`, `text` or `flatten_text` attribute."
+                );
+            }
         }
 
-        let tag = tag.expect("Struct doesn't have tag attribute.");
-
-        if leaf {
-            if text.is_none() && children.is_empty() {
-                Element::Leaf(LeafElement {
-                    name: ident.clone(),
-                    tag,
-                    extend_attrs,
-                    attributes,
-                })
-            } else {
-                panic!("Invalid LeafElement: {}", ident.clone());
-            }
-        } else if let Some(text) = text {
-            if children.is_empty() {
-                Element::Text(TextElement {
-                    name: ident.clone(),
-                    tag,
-                    extend_attrs,
-                    attributes,
-                    text,
-                })
-            } else {
-                panic!("Invalid TextElement: {}", ident.clone());
-            }
-        } else {
-            Element::Parent(ParentElement {
-                name: ident.clone(),
-                tag,
-                extend_attrs,
-                attributes,
-                children,
-                flatten_text,
-            })
-        }
+        Element::Struct(StructElement {
+            name: ident.clone(),
+            tag,
+            extend_attrs,
+            attributes,
+            children,
+            flatten_text,
+            text,
+        })
     }
 
     pub fn parse_enum(data: &DataEnum, ident: &Ident) -> Element {
@@ -168,22 +256,30 @@ impl Element {
             let name = &variant.ident;
             let ty = &variant.fields.iter().next().unwrap().ty;
 
+            let mut tags = Vec::new();
+
             for meta in variant.attrs.iter().filter_map(get_xml_meta).flatten() {
                 match meta {
                     NestedMeta::Meta(NameValue(ref m)) if m.path.is_ident("tag") => {
                         if let Str(ref lit) = m.lit {
-                            elements.push((
-                                lit.clone(),
-                                Variant {
-                                    name: name.clone(),
-                                    ty: ty.clone(),
-                                },
-                            ));
+                            tags.push(lit.clone());
+                        } else {
+                            panic!("Expected a string literal.");
                         }
                     }
-                    _ => panic!("Unkown attribute when parsing variant {}.", &name),
+                    _ => (),
                 }
             }
+
+            if tags.is_empty() {
+                panic!("Missing `tag` attribute.")
+            }
+
+            elements.push(Variant {
+                name: name.clone(),
+                ty: ty.clone(),
+                tags: tags,
+            });
         }
 
         Element::Enum(EnumElement {
@@ -321,17 +417,11 @@ fn is_cow_str(ty: &syn::Type) -> bool {
 }
 
 fn is_bool(ty: &syn::Type) -> bool {
-    match ty {
-        syn::Type::Path(ty) => ty.path.is_ident("bool"),
-        _ => false,
-    }
+    matches!(ty, syn::Type::Path(ty) if ty.path.is_ident("bool"))
 }
 
 fn is_usize(ty: &syn::Type) -> bool {
-    match ty {
-        syn::Type::Path(ty) => ty.path.is_ident("usize"),
-        _ => false,
-    }
+    matches!(ty, syn::Type::Path(ty) if ty.path.is_ident("usize"))
 }
 
 pub fn trim_lifetime(ty: &syn::Type) -> Option<&Ident> {

@@ -1,157 +1,79 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use quote::ToTokens;
 use syn::{Ident, LitStr};
 
-use crate::types::{
-    trim_lifetime, Element, EnumElement, Field, LeafElement, ParentElement, TextElement, Type,
-};
+use crate::types::{trim_lifetime, Element, EnumElement, StructElement, Type};
 
 pub fn read(element: &Element) -> TokenStream {
     match element {
         Element::Enum(enum_ele) => read_enum_element(enum_ele),
-        Element::Leaf(leaf_ele) => read_leaf_element(leaf_ele),
-        Element::Text(text_ele) => read_text_element(text_ele),
-        Element::Parent(parent_ele) => read_parent_element(parent_ele),
+        Element::Struct(struct_ele) => read_struct_element(struct_ele),
     }
 }
 
-fn read_leaf_element(leaf_ele: &LeafElement) -> TokenStream {
-    let ele_name = &leaf_ele.name;
-    let tag = &leaf_ele.tag;
-    let attrs = &leaf_ele.attributes;
+fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
+    let ele_name = &struct_ele.name;
+    let tag = &struct_ele.tag;
+    let attr_fields = &struct_ele.attributes;
+    let child_fields = &struct_ele.children;
+    let flatten_text_fields = &struct_ele.flatten_text;
+    let text_field = &struct_ele.text;
 
-    let init_attrs = attrs.iter().map(|e| init_value(&e.1));
-    let read_attrs = attrs.iter().map(|e| read_attrs(&e.0, &e.1));
-    let return_attrs = attrs.iter().map(|e| return_value(&e.1, ele_name));
+    let init_attr_fields = attr_fields.iter().map(|e| init_value(&e.name, &e.ty));
+    let read_attr_fields = attr_fields
+        .iter()
+        .map(|e| read_attrs(&e.tag, &e.name, &e.ty));
+    let return_attr_fields = attr_fields
+        .iter()
+        .map(|e| return_value(&e.name, &e.ty, e.default, ele_name));
 
-    quote! {
-        log::debug!("Started reading LeafElement {}.", stringify!(#ele_name));
-
-        #( #init_attrs )*
-
-        strong_xml::utils::read_till_element_start(&mut reader, #tag)?;
-
-        while let Some(__token) = reader.next() {
-            match __token? {
-                Token::Attribute { span: __span, value: __value, .. } => {
-                    let __value = __value.as_str();
-                    let __span = &__span.as_str();
-                    let __key = &__span[0..__span.len() - __value.len() - 3];
-                    match __key {
-                        #( #read_attrs, )*
-                        _ => log::info!(
-                            "Unhandled attribute: {:?} when reading LeafElement {}. Skipping.",
-                            __key, stringify!(#ele_name)
-                        ),
-                    }
-                }
-                Token::ElementEnd { end: ElementEnd::Empty, .. } => {
-                    let __res = #ele_name {
-                        #( #return_attrs, )*
-                    };
-
-                    log::debug!("Finished reading LeafElement {}.", stringify!(#ele_name));
-
-                    return Ok(__res);
-                },
-                __token => {
-                    return Err(XmlError::UnexpectedToken{ token: format!("{:?}", __token) });
-                }
-            }
+    let has_text_field = text_field.is_some();
+    let init_text_field = text_field.iter().map(|e| init_value(&e.name, &e.ty));
+    let read_text_field = text_field.as_ref().map(|e| {
+        let name = &e.name;
+        quote! {
+            #name = Some(reader.read_text(#tag)?);
         }
+    });
+    let return_text_field = text_field
+        .iter()
+        .map(|e| return_value(&e.name, &e.ty, true, ele_name));
 
-        Err(XmlError::UnexpectedEof)
-    }
-}
+    let init_child_fields = child_fields.iter().map(|e| init_value(&e.name, &e.ty));
+    let read_child_fields = child_fields
+        .iter()
+        .map(|e| read_children(&e.tags, &e.name, &e.ty));
+    let return_child_fields = child_fields
+        .iter()
+        .map(|e| return_value(&e.name, &e.ty, e.default, ele_name));
 
-fn read_text_element(text_ele: &TextElement) -> TokenStream {
-    let ele_name = &text_ele.name;
-    let tag = &text_ele.tag;
-    let text = &text_ele.text.name;
-    let attrs = &text_ele.attributes;
-
-    let init_attrs = attrs.iter().map(|e| init_value(&e.1));
-    let read_attrs = attrs.iter().map(|e| read_attrs(&e.0, &e.1));
-    let return_attrs = attrs.iter().map(|e| return_value(&e.1, ele_name));
-
-    quote! {
-        log::debug!("Started reading TextElement {}.", stringify!(#ele_name));
-
-        #( #init_attrs )*
-
-        strong_xml::utils::read_till_element_start(&mut reader, #tag)?;
-
-        while let Some(token) = reader.next() {
-            match token? {
-                Token::Attribute { span: __span, value: __value, .. } => {
-                    let __value = __value.as_str();
-                    let __span = __span.as_str();
-                    let __key = &__span[0..__span.len() - __value.len() - 3];
-                    match __key {
-                        #( #read_attrs, )*
-                        _ => log::info!(
-                            "Unhandled attribute: {:?} when reading TextElement {}. Skipping.",
-                            __key, stringify!(#ele_name)
-                        ),
-                    }
-                }
-                Token::ElementEnd { end: ElementEnd::Open, .. } => {
-                    let #text = strong_xml::utils::read_text(&mut reader, #tag)?;
-
-                    let __res = #ele_name {
-                        #text,
-                        #( #return_attrs, )*
-                    };
-
-                    log::debug!("Finished reading TextElement {}.", stringify!(#ele_name));
-
-                    return Ok(__res);
-                },
-                __token => {
-                    return Err(XmlError::UnexpectedToken{ token: format!("{:?}", __token) });
-                }
-            }
-        }
-        Err(XmlError::UnexpectedEof)
-    }
-}
-
-fn read_parent_element(parent_ele: &ParentElement) -> TokenStream {
-    let ele_name = &parent_ele.name;
-    let tag = &parent_ele.tag;
-    let attrs = &parent_ele.attributes;
-    let children = &parent_ele.children;
-    let flatten_text = &parent_ele.flatten_text;
-
-    let mut children_fields = children.iter().map(|e| &e.1).collect::<Vec<_>>();
-    children_fields.dedup_by_key(|f| &f.name);
-
-    let init_attrs = attrs.iter().map(|e| init_value(&e.1));
-    let read_attrs = attrs.iter().map(|e| read_attrs(&e.0, &e.1));
-    let return_attrs = attrs.iter().map(|e| return_value(&e.1, ele_name));
-
-    let init_children = children_fields.iter().map(|f| init_value(f));
-    let read_children = children.iter().map(|e| read_children(&e.0, &e.1));
-    let return_children = children_fields.iter().map(|f| return_value(f, ele_name));
-
-    let init_flatten_text = flatten_text.iter().map(|e| init_value(&e.1));
-    let read_flatten_text = flatten_text.iter().map(|e| read_flatten_text(&e.0, &e.1));
-    let return_flatten_text = flatten_text.iter().map(|e| return_value(&e.1, ele_name));
+    let init_flatten_text_fields = flatten_text_fields
+        .iter()
+        .map(|e| init_value(&e.name, &e.ty));
+    let read_flatten_text_fields = flatten_text_fields
+        .iter()
+        .map(|e| read_flatten_text(&e.tag, &e.name, &e.ty));
+    let return_flatten_text_fields = flatten_text_fields
+        .iter()
+        .map(|e| return_value(&e.name, &e.ty, e.default, ele_name));
 
     let return_fields = quote! {
-        #( #return_attrs, )*
-        #( #return_children, )*
-        #( #return_flatten_text, )*
+        #( #return_attr_fields, )*
+        #( #return_child_fields, )*
+        #( #return_flatten_text_fields, )*
+        #( #return_text_field, )*
     };
 
     quote! {
-        log::debug!("Started reading ParentElement {}.", stringify!(#ele_name));
+        log::debug!(concat!("[", stringify!(#ele_name), "] Started reading"));
 
-        #( #init_attrs )*
-        #( #init_children )*
-        #( #init_flatten_text )*
+        #( #init_attr_fields )*
+        #( #init_child_fields )*
+        #( #init_flatten_text_fields )*
+        #( #init_text_field )*
 
-        strong_xml::utils::read_till_element_start(&mut reader, #tag)?;
+        reader.read_till_element_start(#tag)?;
 
         while let Some(__token) = reader.next() {
             match __token? {
@@ -160,81 +82,99 @@ fn read_parent_element(parent_ele: &ParentElement) -> TokenStream {
                     let __span = __span.as_str();
                     let __key = &__span[0..__span.len() - __value.len() - 3];
                     match __key {
-                        #( #read_attrs, )*
-                        _ => log::info!(
-                            "Unhandled attribute: {:?} when parsing ParentElement {}. Skipping.",
-                            __key, stringify!(#ele_name)
+                        #( #read_attr_fields, )*
+                        key => log::info!(
+                            concat!("[", stringify!(#ele_name), "] Skip attribute `{}`"),
+                            key
                         ),
                     }
                 }
                 Token::ElementEnd { end: ElementEnd::Open, .. } => {
-                    while let Some(__token) = reader.peek() {
-                        match __token {
-                            Ok(Token::ElementStart { span: __span, .. }) => {
-                                match &__span.as_str()[1..] {
-                                    #( #read_children, )*
-                                    #( #read_flatten_text, )*
-                                    __tag => {
-                                        log::info!(
-                                            "Unhandled tag: {:?} when parsing ParentElement {}. Skipping.",
-                                            __tag, stringify!(#ele_name)
-                                        );
-                                        // skip the start tag
-                                        reader.next();
-                                        strong_xml::utils::read_to_end(reader, __tag)?;
-                                    },
-                                }
-                            }
-                            Ok(Token::ElementEnd { end: ElementEnd::Close(_, _), span: __span }) => {
-                                let __span = __span.as_str();
-                                let __tag = &__span[2..__span.len() - 1];
-                                if __tag == #tag {
-                                    let __res = #ele_name { #return_fields };
-
-                                    log::debug!("Finished reading ParentElmenet {}.", stringify!(#ele_name));
-
-                                    reader.next();
-
-                                    return Ok(__res);
-                                } else {
-                                    return Err(XmlError::TagMismatch {
-                                        expected: #tag.to_owned(),
-                                        found: __tag.to_owned(),
-                                    });
-                                }
-                            }
-                            Ok(Token::ElementEnd { .. }) |
-                            Ok(Token::Attribute { .. }) |
-                            Ok(Token::Text { .. }) |
-                            Ok(Token::Cdata { .. }) => {
-                                return Err(XmlError::UnexpectedToken{ token: format!("{:?}", __token) });
-                            }
-                            _ => (),
-                        }
-                    }
-                    return Err(XmlError::UnexpectedEof);
+                    break;
                 }
                 Token::ElementEnd { end: ElementEnd::Empty, .. } => {
                     let __res = #ele_name { #return_fields };
 
-                    log::debug!("Finished reading ParentElmenet {}.", stringify!(#ele_name));
+                    log::debug!(
+                        concat!("[", stringify!(#ele_name), "] Finished reading")
+                    );
 
                     return Ok(__res);
                 }
                 __token => {
-                    return Err(XmlError::UnexpectedToken{ token: format!("{:?}", __token) });
+                    return Err(XmlError::UnexpectedToken {
+                        token: format!("{:?}", __token),
+                    });
                 }
+            }
+        }
+
+        if #has_text_field {
+            #read_text_field
+            let __res = #ele_name { #return_fields };
+
+            log::debug!(
+                concat!("[", stringify!(#ele_name), "] Finished reading")
+            );
+
+            return Ok(__res);
+        }
+
+        while let Some(__token) = reader.peek() {
+            match __token.as_ref() {
+                Ok(Token::ElementStart { span: __span, .. }) => {
+                    match &__span.as_str()[1..] {
+                        #( #read_child_fields, )*
+                        #( #read_flatten_text_fields, )*
+                        __tag => {
+                            log::info!(
+                                concat!("[", stringify!(#ele_name), "] Skip element `{}`"),
+                                __tag
+                            );
+                            // skip the start tag
+                            reader.next();
+                            reader.read_to_end(__tag)?;
+                        },
+                    }
+                }
+                Ok(Token::ElementEnd { end: ElementEnd::Close(_, _), span: __span }) => {
+                    let __span = __span.as_str();
+                    let __tag = &__span[2..__span.len() - 1];
+                    if __tag == #tag {
+                        let __res = #ele_name { #return_fields };
+
+                        log::debug!(
+                            concat!("[", stringify!(#ele_name), "] Finished reading")
+                        );
+
+                        reader.next();
+
+                        return Ok(__res);
+                    } else {
+                        return Err(XmlError::TagMismatch {
+                            expected: #tag.to_owned(),
+                            found: __tag.to_owned(),
+                        });
+                    }
+                }
+                Ok(Token::ElementEnd { .. }) |
+                Ok(Token::Attribute { .. }) |
+                Ok(Token::Text { .. }) |
+                Ok(Token::Cdata { .. }) => {
+                    return Err(XmlError::UnexpectedToken {
+                        token: format!("{:?}", __token),
+                    });
+                }
+                _ => (),
             }
         }
         Err(XmlError::UnexpectedEof)
     }
 }
 
-fn init_value(field: &Field) -> TokenStream {
-    let name = &field.name;
-
-    match field.ty {
-        Type::VecT(_) | Type::VecCowStr => quote! { let mut #name = vec![]; },
+fn init_value(name: &Ident, ty: &Type) -> TokenStream {
+    match ty {
+        Type::VecT(_) | Type::VecCowStr => quote! { let mut #name = Vec::new(); },
         Type::OptionCowStr
         | Type::OptionT(_)
         | Type::OptionBool
@@ -246,10 +186,8 @@ fn init_value(field: &Field) -> TokenStream {
     }
 }
 
-fn return_value(field: &Field, ele_name: &Ident) -> TokenStream {
-    let name = &field.name;
-
-    match field.ty {
+fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &Ident) -> TokenStream {
+    match ty {
         Type::OptionCowStr
         | Type::OptionT(_)
         | Type::OptionBool
@@ -257,20 +195,22 @@ fn return_value(field: &Field, ele_name: &Ident) -> TokenStream {
         | Type::VecCowStr
         | Type::VecT(_) => quote! { #name },
         Type::CowStr | Type::T(_) | Type::Usize | Type::Bool => {
-            quote! {
-                #name: #name.ok_or(XmlError::MissingField {
-                    name: stringify!(#ele_name).to_owned(),
-                    field: stringify!(#name).to_owned(),
-                })?
+            if default {
+                quote! { #name: #name.unwrap_or_default() }
+            } else {
+                quote! {
+                    #name: #name.ok_or(XmlError::MissingField {
+                        name: stringify!(#ele_name).to_owned(),
+                        field: stringify!(#name).to_owned(),
+                    })?
+                }
             }
         }
     }
 }
 
-fn read_attrs(tag: &LitStr, field: &Field) -> TokenStream {
-    let name = &field.name;
-
-    match &field.ty {
+fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+    match &ty {
         Type::CowStr | Type::OptionCowStr => quote! {
             #tag => #name = Some(Cow::Borrowed(__value))
         },
@@ -296,40 +236,29 @@ fn read_attrs(tag: &LitStr, field: &Field) -> TokenStream {
     }
 }
 
-fn read_children(tag: &LitStr, field: &Field) -> TokenStream {
-    let name = &field.name;
+fn read_children(tags: &[LitStr], name: &Ident, ty: &Type) -> TokenStream {
+    let tags = tags.iter();
 
-    match &field.ty {
+    match &ty {
         Type::VecT(ty) => {
             if let Some(ident) = trim_lifetime(ty) {
                 quote! {
-                    #tag => #name.push(#ident::from_reader(reader)?)
+                    #( #tags )|* => #name.push(#ident::from_reader(reader)?)
                 }
             } else {
                 quote! {
-                    #tag => #name.push(#ty::from_reader(reader)?)
+                    #( #tags )|* => #name.push(#ty::from_reader(reader)?)
                 }
             }
         }
-        Type::OptionT(ty) => {
+        Type::OptionT(ty) | Type::T(ty) => {
             if let Some(ident) = trim_lifetime(ty) {
                 quote! {
-                    #tag => #name = Some(#ident::from_reader(reader)?)
+                    #( #tags )|* => #name = Some(#ident::from_reader(reader)?)
                 }
             } else {
                 quote! {
-                    #tag => #name = Some(#ty::from_reader(reader)?)
-                }
-            }
-        }
-        Type::T(ty) => {
-            if let Some(ident) = trim_lifetime(ty) {
-                quote! {
-                    #tag => #name = Some(#ident::from_reader(reader)?)
-                }
-            } else {
-                quote! {
-                    #tag => #name = Some(#ty::from_reader(reader)?)
+                    #( #tags )|* => #name = Some(#ty::from_reader(reader)?)
                 }
             }
         }
@@ -337,16 +266,14 @@ fn read_children(tag: &LitStr, field: &Field) -> TokenStream {
     }
 }
 
-fn read_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
-    let name = &field.name;
-
-    match field.ty {
+fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+    match ty {
         Type::VecCowStr => quote! {
             #tag => {
                 // skip element start
                 reader.next();
                 log::debug!("Started reading flatten_text {}.", stringify!(#name));
-                #name.push(strong_xml::utils::read_text(&mut reader, #tag)?);
+                #name.push(reader.read_text(#tag)?);
                 log::debug!("Finished reading flatten_text {}.", stringify!(#name));
             }
         },
@@ -355,7 +282,7 @@ fn read_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
                 // skip element start
                 reader.next();
                 log::debug!("Started reading flatten_text {}.", stringify!(#name));
-                #name = Some(strong_xml::utils::read_text(&mut reader, #tag)?);
+                #name = Some(reader.read_text(#tag)?);
                 log::debug!("Finished reading flatten_text {}.", stringify!(#name));
             }
         },
@@ -367,36 +294,32 @@ fn read_flatten_text(tag: &LitStr, field: &Field) -> TokenStream {
 
 fn read_enum_element(enum_ele: &EnumElement) -> TokenStream {
     let ele_name = &enum_ele.name;
-    let read_variants = enum_ele.elements.iter().map(|(tag, var)| {
-        let var_name = &var.name;
-        let ty = &var.ty;
-
-        if let Some(ident) = trim_lifetime(ty) {
-            quote! {
-                #tag => return #ident::from_reader(reader).map(#ele_name::#var_name)
-            }
+    let tags = enum_ele.elements.iter().map(|var| &var.tags);
+    let name = enum_ele.elements.iter().map(|var| &var.name);
+    let ty = enum_ele.elements.iter().map(|var| {
+        if let Some(ty) = trim_lifetime(&var.ty) {
+            ty.to_token_stream()
         } else {
-            quote! {
-                #tag => return #ty::from_reader(reader).map(#ele_name::#var_name)
-            }
+            var.ty.to_token_stream()
         }
     });
 
     quote! {
-        while let Some(__token) = reader.peek() {
-            match __token {
-                Ok(Token::ElementStart { span: __span, .. }) => {
-                    let __tag = &__span.as_str()[1..];
-                    match &__span.as_str()[1..] {
-                        #( #read_variants, )*
-                        __tag => {
+        while let Some(token) = reader.peek() {
+            match token {
+                Ok(Token::ElementStart { span, .. }) => {
+                    match &span.as_str()[1..] {
+                        #(
+                            #( #tags )|* => return #ty::from_reader(reader).map(#ele_name::#name),
+                        )*
+                        tag => {
                             log::info!(
-                                "Unhandled tag: {:?} when parsing {}. Skipping.",
-                                __tag, stringify!(#ele_name)
+                                concat!("[", stringify!(#ele_name), "] Skip element {}"),
+                                tag
                             );
                             // skip the start tag
                             reader.next();
-                            strong_xml::utils::read_to_end(reader, __tag)?;
+                            reader.read_to_end(tag)?;
                         }
                     }
                 },
@@ -404,7 +327,7 @@ fn read_enum_element(enum_ele: &EnumElement) -> TokenStream {
                 Ok(Token::Attribute { .. }) |
                 Ok(Token::Text { .. }) |
                 Ok(Token::Cdata { .. }) => {
-                    return Err(XmlError::UnexpectedToken{ token: format!("{:?}", __token) });
+                    return Err(XmlError::UnexpectedToken{ token: format!("{:?}", token) });
                 },
                 _ => (),
             }
