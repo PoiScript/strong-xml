@@ -192,8 +192,9 @@ impl Element {
                                 );
                             } else if flatten_text_tag.is_some() {
                                 panic!("Duplicate `flatten_text` attribute.");
+                            } else {
+                                flatten_text_tag = Some(lit.clone());
                             }
-                            flatten_text_tag = Some(lit.clone());
                         } else {
                             panic!("Expected a string literal.");
                         }
@@ -278,7 +279,7 @@ impl Element {
             elements.push(Variant {
                 name: name.clone(),
                 ty: ty.clone(),
-                tags: tags,
+                tags,
             });
         }
 

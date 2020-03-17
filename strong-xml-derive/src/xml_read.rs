@@ -1,6 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::quote;
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::{Ident, LitStr};
 
 use crate::types::{trim_lifetime, Element, EnumElement, StructElement, Type};
@@ -20,58 +19,55 @@ fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
     let flatten_text_fields = &struct_ele.flatten_text;
     let text_field = &struct_ele.text;
 
-    let init_attr_fields = attr_fields.iter().map(|e| init_value(&e.name, &e.ty));
+    let init_fields = attr_fields
+        .iter()
+        .map(|e| (&e.name, &e.ty))
+        .chain(text_field.iter().map(|e| (&e.name, &e.ty)))
+        .chain(child_fields.iter().map(|e| (&e.name, &e.ty)))
+        .chain(flatten_text_fields.iter().map(|e| (&e.name, &e.ty)))
+        .map(|(name, ty)| init_value(name, ty));
+
+    let return_fields = attr_fields
+        .iter()
+        .map(|e| (&e.name, &e.ty, e.default))
+        .chain(text_field.iter().map(|e| (&e.name, &e.ty, true)))
+        .chain(child_fields.iter().map(|e| (&e.name, &e.ty, e.default)))
+        .chain(
+            flatten_text_fields
+                .iter()
+                .map(|e| (&e.name, &e.ty, e.default)),
+        )
+        .map(|(name, ty, default)| return_value(name, ty, default, ele_name));
+
     let read_attr_fields = attr_fields
         .iter()
         .map(|e| read_attrs(&e.tag, &e.name, &e.ty));
-    let return_attr_fields = attr_fields
-        .iter()
-        .map(|e| return_value(&e.name, &e.ty, e.default, ele_name));
 
     let has_text_field = text_field.is_some();
-    let init_text_field = text_field.iter().map(|e| init_value(&e.name, &e.ty));
+
     let read_text_field = text_field.as_ref().map(|e| {
         let name = &e.name;
         quote! {
             #name = Some(reader.read_text(#tag)?);
         }
     });
-    let return_text_field = text_field
-        .iter()
-        .map(|e| return_value(&e.name, &e.ty, true, ele_name));
 
-    let init_child_fields = child_fields.iter().map(|e| init_value(&e.name, &e.ty));
     let read_child_fields = child_fields
         .iter()
         .map(|e| read_children(&e.tags, &e.name, &e.ty));
-    let return_child_fields = child_fields
-        .iter()
-        .map(|e| return_value(&e.name, &e.ty, e.default, ele_name));
 
-    let init_flatten_text_fields = flatten_text_fields
-        .iter()
-        .map(|e| init_value(&e.name, &e.ty));
     let read_flatten_text_fields = flatten_text_fields
         .iter()
         .map(|e| read_flatten_text(&e.tag, &e.name, &e.ty));
-    let return_flatten_text_fields = flatten_text_fields
-        .iter()
-        .map(|e| return_value(&e.name, &e.ty, e.default, ele_name));
 
     let return_fields = quote! {
-        #( #return_attr_fields, )*
-        #( #return_child_fields, )*
-        #( #return_flatten_text_fields, )*
-        #( #return_text_field, )*
+        #( #return_fields, )*
     };
 
     quote! {
         log::debug!(concat!("[", stringify!(#ele_name), "] Started reading"));
 
-        #( #init_attr_fields )*
-        #( #init_child_fields )*
-        #( #init_flatten_text_fields )*
-        #( #init_text_field )*
+        #( #init_fields )*
 
         reader.read_till_element_start(#tag)?;
 
