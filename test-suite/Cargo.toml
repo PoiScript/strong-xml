@@ -1,5 +1,5 @@
 [package]
-name = "strong_xml_test_suite"
+name = "strong-xml-test-suite"
 version = "0.1.0"
 authors = ["PoiScript <poiscript@gmail.com>"]
 edition = "2018"

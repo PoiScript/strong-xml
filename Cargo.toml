@@ -2,6 +2,5 @@
 members = [
     "strong-xml",
     "strong-xml-derive",
-    "test_suite"
+    "test-suite"
 ]
-
