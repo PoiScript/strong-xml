@@ -3,7 +3,7 @@
 //! ## Quick Start
 //!
 //! ```toml
-//! strong-xml = "0.1.0"
+//! strong-xml = "0.2.0"
 //! ```
 //!
 //! ```rust
