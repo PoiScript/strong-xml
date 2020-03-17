@@ -3,7 +3,6 @@
 //! ## Quick Start
 //!
 //! ```toml
-//! xmlparser = "0.13.0"
 //! strong-xml = "0.1.0"
 //! ```
 //!

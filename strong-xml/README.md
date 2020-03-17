@@ -5,7 +5,6 @@ Strong typed xml, based on xmlparser.
 ### Quick Start
 
 ```toml
-xmlparser = "0.13.0"
 strong-xml = "0.1.0"
 ```
 
@@ -33,7 +32,7 @@ struct Child<'a> {
 
 assert_eq!(
     (Parent { attr1: "val".into(), attr2: None, child: vec![] }).to_string().unwrap(),
-    r#"<parent attr1="val"></parent>"#
+    r#"<parent attr1="val"/>"#
 );
 
 assert_eq!(
@@ -55,11 +54,11 @@ struct Parent {}
 
 assert_eq!(
     (Parent {}).to_string().unwrap(),
-    r#"<parent></parent>"#
+    r#"<parent/>"#
 );
 
 assert_eq!(
-    Parent::from_str(r#"<parent></parent>"#).unwrap(),
+    Parent::from_str(r#"<parent/>"#).unwrap(),
     Parent {}
 );
 ```
@@ -83,7 +82,7 @@ enum Tag {
 
 assert_eq!(
     (Tag::Tag1(Tag1 {})).to_string().unwrap(),
-    r#"<tag1></tag1>"#
+    r#"<tag1/>"#
 );
 
 assert_eq!(
@@ -111,32 +110,12 @@ struct Parent {
 
 assert_eq!(
     (Parent { attr: 42 }).to_string().unwrap(),
-    r#"<parent attr="42"></parent>"#
+    r#"<parent attr="42"/>"#
 );
 
 assert_eq!(
     Parent::from_str(r#"<parent attr="48"></parent>"#).unwrap(),
     Parent { attr: 48 }
-);
-```
-
-#### `#[xml(leaf)]`
-
-Specifies that a sturct is leaf element.
-
-```rust
-#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-#[xml(leaf, tag = "leaf")]
-struct Leaf {}
-
-assert_eq!(
-    (Leaf {}).to_string().unwrap(),
-    r#"<leaf/>"#
-);
-
-assert_eq!(
-    Leaf::from_str(r#"<leaf/>"#).unwrap(),
-    Leaf {}
 );
 ```
 
@@ -179,7 +158,7 @@ struct Parent {
 
 assert_eq!(
     (Parent { tag3: vec![Tag3 {}], tag12: None }).to_string().unwrap(),
-    r#"<parent><tag3></tag3></parent>"#
+    r#"<parent><tag3/></parent>"#
 );
 
 assert_eq!(
