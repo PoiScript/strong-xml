@@ -42,7 +42,7 @@ fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
     } else if let Some(text_field) = text_field {
         let name = &text_field.name;
         quote! {
-            write!(&mut writer, concat!(">{}</", #tag, ">"), self.#name)?;
+            write!(&mut writer, concat!(">{}</", #tag, ">"), strong_xml::utils::xml_escape(&self.#name))?;
         }
     } else {
         let content_is_empty = child_fields
