@@ -41,24 +41,28 @@ fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
 
     let read_attr_fields = attr_fields
         .iter()
-        .map(|e| read_attrs(&e.tag, &e.name, &e.ty));
+        .map(|e| read_attrs(&e.tag, &e.name, &e.ty, ele_name));
 
     let has_text_field = text_field.is_some();
 
     let read_text_field = text_field.as_ref().map(|e| {
         let name = &e.name;
         quote! {
+            log::trace!(
+                concat!("[", stringify!(#ele_name), "] Reading text field `", stringify!(#name), "`")
+            );
+
             #name = Some(reader.read_text(#tag)?);
         }
     });
 
     let read_child_fields = child_fields
         .iter()
-        .map(|e| read_children(&e.tags, &e.name, &e.ty));
+        .map(|e| read_children(&e.tags, &e.name, &e.ty, ele_name));
 
     let read_flatten_text_fields = flatten_text_fields
         .iter()
-        .map(|e| read_flatten_text(&e.tag, &e.name, &e.ty));
+        .map(|e| read_flatten_text(&e.tag, &e.name, &e.ty, ele_name));
 
     let return_fields = quote! {
         #( #return_fields, )*
@@ -205,25 +209,43 @@ fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &Ident) -> Tok
     }
 }
 
-fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
     match &ty {
         Type::CowStr | Type::OptionCowStr => quote! {
-            #tag => #name = Some(Cow::Borrowed(__value))
+            #tag => {
+                log::trace!(
+                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
+                );
+
+                #name = Some(Cow::Borrowed(__value));
+            }
         },
         Type::Bool | Type::OptionBool => quote! {
             #tag => {
+                log::trace!(
+                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
+                );
+
                 use std::str::FromStr;
                 #name = Some(bool::from_str(__value).or(usize::from_str(__value).map(|v| v != 0))?);
             }
         },
         Type::Usize | Type::OptionUsize => quote! {
             #tag => {
+                log::trace!(
+                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
+                );
+
                 use std::str::FromStr;
                 #name = Some(usize::from_str(__value)?);
             }
         },
         Type::T(ty) | Type::OptionT(ty) => quote! {
             #tag => {
+                log::trace!(
+                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
+                );
+
                 use std::str::FromStr;
                 #name = Some(#ty::from_str(__value)?);
             }
@@ -232,29 +254,50 @@ fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     }
 }
 
-fn read_children(tags: &[LitStr], name: &Ident, ty: &Type) -> TokenStream {
+fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
     let tags = tags.iter();
 
     match &ty {
         Type::VecT(ty) => {
             if let Some(ident) = trim_lifetime(ty) {
                 quote! {
-                    #( #tags )|* => #name.push(#ident::from_reader(reader)?)
+                    #( #tags )|* => {
+                        log::trace!(
+                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
+                        );
+
+                        #name.push(#ident::from_reader(reader)?)
+                    }
                 }
             } else {
                 quote! {
-                    #( #tags )|* => #name.push(#ty::from_reader(reader)?)
+                    #( #tags )|* => {
+                        log::trace!(
+                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
+                        );
+                        #name.push(#ty::from_reader(reader)?);
+                    }
                 }
             }
         }
         Type::OptionT(ty) | Type::T(ty) => {
             if let Some(ident) = trim_lifetime(ty) {
                 quote! {
-                    #( #tags )|* => #name = Some(#ident::from_reader(reader)?)
+                    #( #tags )|* => {
+                        log::trace!(
+                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
+                        );
+                        #name = Some(#ident::from_reader(reader)?);
+                    }
                 }
             } else {
                 quote! {
-                    #( #tags )|* => #name = Some(#ty::from_reader(reader)?)
+                    #( #tags )|* => {
+                        log::trace!(
+                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
+                        );
+                        #name = Some(#ty::from_reader(reader)?);
+                    }
                 }
             }
         }
@@ -262,24 +305,26 @@ fn read_children(tags: &[LitStr], name: &Ident, ty: &Type) -> TokenStream {
     }
 }
 
-fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
     match ty {
         Type::VecCowStr => quote! {
             #tag => {
                 // skip element start
                 reader.next();
-                log::debug!("Started reading flatten_text {}.", stringify!(#name));
+                log::trace!(
+                    concat!("[", stringify!(#ele_name), "] Reading flatten_text field `", stringify!(#name), "`")
+                );
                 #name.push(reader.read_text(#tag)?);
-                log::debug!("Finished reading flatten_text {}.", stringify!(#name));
             }
         },
         Type::CowStr | Type::OptionCowStr => quote! {
             #tag => {
                 // skip element start
                 reader.next();
-                log::debug!("Started reading flatten_text {}.", stringify!(#name));
+                log::trace!(
+                    concat!("[", stringify!(#ele_name), "] Reading flatten_text field `", stringify!(#name), "`")
+                );
                 #name = Some(reader.read_text(#tag)?);
-                log::debug!("Finished reading flatten_text {}.", stringify!(#name));
             }
         },
         _ => panic!(
