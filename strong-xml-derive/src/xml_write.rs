@@ -157,9 +157,9 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
             write!(&mut writer, concat!("</" , #tag, ">"))?;
         },
         Type::OptionBool | Type::OptionUsize => quote! {
-            if let Some(ref ele) = self.#name {
+            if let Some(ref value) = self.#name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
-                write!(&mut writer, "{}", strong_xml::utils::xml_escape(&self.#name.to_string()))?;
+                write!(&mut writer, "{}", strong_xml::utils::xml_escape(&value.to_string()))?;
                 write!(&mut writer, concat!("</" , #tag, ">"))?;
             }
         },
