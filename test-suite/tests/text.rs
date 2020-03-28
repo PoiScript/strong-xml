@@ -8,6 +8,20 @@ struct Root<'a> {
     content: Cow<'a, str>,
 }
 
+#[derive(XmlWrite, PartialEq, Debug)] // XmlRead
+#[xml(tag = "root")]
+struct TypedRoot {
+    #[xml(text)]
+    id: usize,
+}
+
+#[derive(XmlWrite, PartialEq, Debug)] // XmlRead
+#[xml(tag = "root")]
+struct Test {
+    #[xml(flatten_text = "my:confirm")]
+    confirm: bool,
+}
+
 #[test]
 fn test() -> XmlResult<()> {
     let _ = env_logger::builder()
@@ -28,6 +42,24 @@ fn test() -> XmlResult<()> {
         },
         Root::from_str(r#"<root>content</root>"#)?
     );
+
+    assert_eq!(
+        r#"<root>42</root>"#,
+        TypedRoot { id: 42 }.to_string().unwrap()
+    );
+    // assert_eq!(
+    //     TypedRoot { id: 42 },
+    //     TypedRoot::from_str(r#"<root>42</root>"#)?
+    // );
+
+    assert_eq!(
+        r#"<root><my:confirm>true</my:confirm></root>"#,
+        Test { confirm: true }.to_string().unwrap()
+    );
+    // assert_eq!(
+    //     Test { confirm: true },
+    //     Test::from_str(r#"<root><my:confirm>true</my:confirm></root>"#)?
+    // );
 
     Ok(())
 }

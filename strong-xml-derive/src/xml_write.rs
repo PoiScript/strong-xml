@@ -42,7 +42,7 @@ fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
     } else if let Some(text_field) = text_field {
         let name = &text_field.name;
         quote! {
-            write!(&mut writer, concat!(">{}</", #tag, ">"), strong_xml::utils::xml_escape(&self.#name))?;
+            write!(&mut writer, concat!(">{}</", #tag, ">"), strong_xml::utils::xml_escape(&self.#name.to_string()))?;
         }
     } else {
         let content_is_empty = child_fields
@@ -134,31 +134,37 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     match ty {
         Type::CowStr => quote! {
             write!(&mut writer, concat!("<" , #tag, ">"))?;
-
             write!(&mut writer, "{}", strong_xml::utils::xml_escape(&self.#name))?;
-
             write!(&mut writer, concat!("</" , #tag, ">"))?;
         },
         Type::OptionCowStr => quote! {
             if let Some(value) = &self.#name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
-
                 write!(&mut writer, "{}", strong_xml::utils::xml_escape(&value))?;
-
                 write!(&mut writer, concat!("</" , #tag, ">"))?;
             }
         },
         Type::VecCowStr => quote! {
            for value in &self.#name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
-
                 write!(&mut writer, "{}", strong_xml::utils::xml_escape(&value))?;
-
+                write!(&mut writer, concat!("</" , #tag, ">"))?;
+            }
+        },
+        Type::Bool | Type::Usize => quote! {
+            write!(&mut writer, concat!("<" , #tag, ">"))?;
+            write!(&mut writer, "{}", strong_xml::utils::xml_escape(&self.#name.to_string()))?;
+            write!(&mut writer, concat!("</" , #tag, ">"))?;
+        },
+        Type::OptionBool | Type::OptionUsize => quote! {
+            if let Some(ref ele) = self.#name {
+                write!(&mut writer, concat!("<" , #tag, ">"))?;
+                write!(&mut writer, "{}", strong_xml::utils::xml_escape(&self.#name.to_string()))?;
                 write!(&mut writer, concat!("</" , #tag, ">"))?;
             }
         },
         _ => panic!(
-            "#[xml(flatten_text)] only support Cow<str>, Vec<Cow<str>> and Option<Cow<str>>."
+            "#[xml(flatten_text)] only support bool, Option<bool>, usize, Option<usize>, Cow<str>, Vec<Cow<str>> and Option<Cow<str>>."
         ),
     }
 }
