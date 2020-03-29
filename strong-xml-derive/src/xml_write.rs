@@ -93,11 +93,7 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     let to_str = to_str(ty);
 
     if ty.is_vec() {
-        quote! {
-            if let Some(ref __value) = self.#name {
-                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
-            }
-        }
+        panic!("`attr` attribute doesn't support Vec.");
     } else if ty.is_option() {
         quote! {
             if let Some(ref __value) = self.#name {
