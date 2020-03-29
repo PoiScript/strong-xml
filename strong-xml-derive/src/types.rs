@@ -302,26 +302,40 @@ fn get_xml_meta(attr: &Attribute) -> Option<Vec<NestedMeta>> {
 }
 
 pub enum Type {
-    // Vec<Cow<'a, str>>, flatten_text
-    VecCowStr,
-    // Vec<T>, children
-    VecT(syn::Type),
-    // Option<T>, children, attr
-    OptionT(syn::Type),
-    // Option<Cow<'a, str>>, flatten_text, attr
-    OptionCowStr,
-    // Option<bool>, attr
-    OptionBool,
-    // Option<usize>, attr
-    OptionUsize,
-    // Cow<'a, str>, flatten_text
+    // Cow<'a, str>
     CowStr,
-    // bool, attr
-    Bool,
-    // usize, attr
-    Usize,
-    // T, child, attr
+    // Option<Cow<'a, str>>
+    OptionCowStr,
+    // Vec<Cow<'a, str>>
+    VecCowStr,
+    // T
     T(syn::Type),
+    // Option<T>
+    OptionT(syn::Type),
+    // Vec<T>
+    VecT(syn::Type),
+    // bool
+    Bool,
+    // Vec<bool>
+    VecBool,
+    // Option<bool>
+    OptionBool,
+}
+
+impl Type {
+    pub fn is_option(&self) -> bool {
+        match self {
+            Type::OptionCowStr | Type::OptionT(_) | Type::OptionBool => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_vec(&self) -> bool {
+        match self {
+            Type::VecCowStr | Type::VecT(_) | Type::VecBool => true,
+            _ => false,
+        }
+    }
 }
 
 impl From<&syn::Type> for Type {
@@ -329,6 +343,8 @@ impl From<&syn::Type> for Type {
         if let Some(ty) = is_vec(ty) {
             if is_cow_str(ty) {
                 Type::VecCowStr
+            } else if is_bool(ty) {
+                Type::VecBool
             } else {
                 Type::VecT(ty.clone())
             }
@@ -337,15 +353,11 @@ impl From<&syn::Type> for Type {
                 Type::OptionCowStr
             } else if is_bool(ty) {
                 Type::OptionBool
-            } else if is_usize(ty) {
-                Type::OptionUsize
             } else {
                 Type::OptionT(ty.clone())
             }
         } else if is_cow_str(ty) {
             Type::CowStr
-        } else if is_usize(ty) {
-            Type::Usize
         } else if is_bool(ty) {
             Type::Bool
         } else {
@@ -419,10 +431,6 @@ fn is_cow_str(ty: &syn::Type) -> bool {
 
 fn is_bool(ty: &syn::Type) -> bool {
     matches!(ty, syn::Type::Path(ty) if ty.path.is_ident("bool"))
-}
-
-fn is_usize(ty: &syn::Type) -> bool {
-    matches!(ty, syn::Type::Path(ty) if ty.path.is_ident("usize"))
 }
 
 pub fn trim_lifetime(ty: &syn::Type) -> Option<&Ident> {

@@ -35,26 +35,25 @@ fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
         .iter()
         .map(|e| &e.ty)
         .chain(flatten_text_fields.iter().map(|e| &e.ty))
-        .all(|ty| matches!(ty, Type::VecCowStr | Type::VecT(_) | Type::OptionT(_) | Type::OptionCowStr | Type::OptionBool | Type::OptionUsize));
+        .all(|ty| ty.is_vec() || ty.is_option());
 
     let write_element_end = if is_leaf_element {
         quote! { write!(&mut writer, "/>")?; }
     } else if let Some(text_field) = text_field {
-        let name = &text_field.name;
-        quote! {
-            write!(&mut writer, concat!(">{}</", #tag, ">"), strong_xml::utils::xml_escape(&self.#name))?;
-        }
+        write_text(tag, &text_field.name, &text_field.ty)
     } else {
         let content_is_empty = child_fields
             .iter()
             .map(|e| (&e.name, &e.ty))
             .chain(flatten_text_fields.iter().map(|e| (&e.name, &e.ty)))
-            .flat_map(|(name, ty)| match ty {
-                Type::VecCowStr | Type::VecT(_) => Some(quote! { self.#name.is_empty() }),
-                Type::OptionT(_) | Type::OptionCowStr | Type::OptionBool | Type::OptionUsize => {
+            .flat_map(|(name, ty)| {
+                if ty.is_vec() {
+                    Some(quote! { self.#name.is_empty() })
+                } else if ty.is_option() {
                     Some(quote! { self.#name.is_none() })
+                } else {
+                    None
                 }
-                _ => None,
             });
 
         let write_child_fields = child_fields.iter().map(|e| write_child(&e.name, &e.ty));
@@ -91,23 +90,25 @@ fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
 }
 
 fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
-    match ty {
-        Type::OptionCowStr | Type::OptionBool | Type::OptionUsize => quote! {
-            if let Some(ref value) = self.#name {
-                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), value)?;
+    let to_str = to_str(ty);
+
+    if ty.is_vec() {
+        quote! {
+            if let Some(ref __value) = self.#name {
+                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
             }
-        },
-        Type::CowStr | Type::Bool | Type::Usize | Type::T(_) => quote! {
-            write!(&mut writer, concat!(" ", #tag, "=\"{}\""), self.#name)?;
-        },
-        Type::OptionT(_) => quote! {
-            if let Some(ref value) = self.#name {
-                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), value)?;
+        }
+    } else if ty.is_option() {
+        quote! {
+            if let Some(ref __value) = self.#name {
+                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
             }
-        },
-        _ => panic!(
-            "#[xml(attr = \"\")] only supports Cow<str>, Option<Cow<str>>, bool, Option<bool>, usize, Option<usize> and Option<T>."
-        ),
+        }
+    } else {
+        quote! {
+            let __value = &self.#name;
+            write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
+        }
     }
 }
 
@@ -126,40 +127,74 @@ fn write_child(name: &Ident, ty: &Type) -> TokenStream {
         Type::T(_) => quote! {
             &self.#name.to_writer(&mut writer)?;
         },
-        _ => panic!("#[xml(child = \"\")] only support Vec<T>, Option<T> and T."),
+        _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
+    }
+}
+
+fn write_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
+    let to_str = to_str(ty);
+
+    quote! {
+        write!(&mut writer, ">")?;
+
+        let __value = &self.#name;
+
+        write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+
+        write!(&mut writer, concat!("</" , #tag, ">"))?;
     }
 }
 
 fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
-    match ty {
-        Type::CowStr => quote! {
+    let to_str = to_str(ty);
+
+    if ty.is_vec() {
+        quote! {
+           for __value in &self.#name {
+                write!(&mut writer, concat!("<" , #tag, ">"))?;
+
+                write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+
+                write!(&mut writer, concat!("</" , #tag, ">"))?;
+            }
+        }
+    } else if ty.is_option() {
+        quote! {
+            if let Some(__value) = &self.#name {
+                write!(&mut writer, concat!("<" , #tag, ">"))?;
+
+                write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+
+                write!(&mut writer, concat!("</" , #tag, ">"))?;
+            }
+        }
+    } else {
+        quote! {
             write!(&mut writer, concat!("<" , #tag, ">"))?;
 
-            write!(&mut writer, "{}", strong_xml::utils::xml_escape(&self.#name))?;
+            let __value = &self.#name;
+
+            write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
 
             write!(&mut writer, concat!("</" , #tag, ">"))?;
-        },
-        Type::OptionCowStr => quote! {
-            if let Some(value) = &self.#name {
-                write!(&mut writer, concat!("<" , #tag, ">"))?;
+        }
+    }
+}
 
-                write!(&mut writer, "{}", strong_xml::utils::xml_escape(&value))?;
-
-                write!(&mut writer, concat!("</" , #tag, ">"))?;
+fn to_str(ty: &Type) -> TokenStream {
+    match &ty {
+        Type::CowStr | Type::OptionCowStr | Type::VecCowStr => {
+            quote! { __value }
+        }
+        Type::Bool | Type::OptionBool | Type::VecBool => quote! {
+            match __value {
+                true => "true",
+                false => "false"
             }
         },
-        Type::VecCowStr => quote! {
-           for value in &self.#name {
-                write!(&mut writer, concat!("<" , #tag, ">"))?;
-
-                write!(&mut writer, "{}", strong_xml::utils::xml_escape(&value))?;
-
-                write!(&mut writer, concat!("</" , #tag, ">"))?;
-            }
-        },
-        _ => panic!(
-            "#[xml(flatten_text)] only support Cow<str>, Vec<Cow<str>> and Option<Cow<str>>."
-        ),
+        Type::T(_) | Type::OptionT(_) | Type::VecT(_) => {
+            quote! { &format!("{}", __value) }
+        }
     }
 }
 

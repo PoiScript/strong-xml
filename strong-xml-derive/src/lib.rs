@@ -65,7 +65,7 @@ pub fn derive_xml_write(input: TokenStream) -> TokenStream {
     let gen = quote! {
         impl #generics #name #generics {
             pub(crate) fn to_string(&self) -> strong_xml::XmlResult<String> {
-                let mut writer = vec![];
+                let mut writer = Vec::new();
 
                 self.to_writer(&mut writer)?;
 

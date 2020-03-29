@@ -1,25 +1,18 @@
-use std::{
-    io::Error as IOError,
-    num::ParseIntError,
-    str::{ParseBoolError, Utf8Error},
-    string::FromUtf8Error,
-};
+use std::{error::Error, io::Error as IOError, str::Utf8Error, string::FromUtf8Error};
 use xmlparser::Error as ParserError;
 
 #[derive(Debug)]
 pub enum XmlError {
     IO(IOError),
     Parser(ParserError),
-    ParseInt(ParseIntError),
-    ParseBool(ParseBoolError),
     Utf8(Utf8Error),
     UnexpectedEof,
     UnexpectedToken { token: String },
     TagMismatch { expected: String, found: String },
     MissingField { name: String, field: String },
-    UnknownValue { expected: String, found: String },
     UnterminatedEntity { entity: String },
     UnrecognizedSymbol { symbol: String },
+    FromStr(Box<dyn Error>),
 }
 
 impl From<IOError> for XmlError {
@@ -37,18 +30,6 @@ impl From<Utf8Error> for XmlError {
 impl From<FromUtf8Error> for XmlError {
     fn from(err: FromUtf8Error) -> Self {
         XmlError::Utf8(err.utf8_error())
-    }
-}
-
-impl From<ParseIntError> for XmlError {
-    fn from(err: ParseIntError) -> Self {
-        XmlError::ParseInt(err)
-    }
-}
-
-impl From<ParseBoolError> for XmlError {
-    fn from(err: ParseBoolError) -> Self {
-        XmlError::ParseBool(err)
     }
 }
 

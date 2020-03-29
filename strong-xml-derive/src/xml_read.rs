@@ -45,16 +45,9 @@ fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
 
     let has_text_field = text_field.is_some();
 
-    let read_text_field = text_field.as_ref().map(|e| {
-        let name = &e.name;
-        quote! {
-            log::trace!(
-                concat!("[", stringify!(#ele_name), "] Reading text field `", stringify!(#name), "`")
-            );
-
-            #name = Some(reader.read_text(#tag)?);
-        }
-    });
+    let read_text_field = text_field
+        .as_ref()
+        .map(|e| read_text(tag, &e.name, &e.ty, ele_name));
 
     let read_child_fields = child_fields
         .iter()
@@ -81,6 +74,7 @@ fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
                     let __value = __value.as_str();
                     let __span = __span.as_str();
                     let __key = &__span[0..__span.len() - __value.len() - 3];
+                    let __value = std::borrow::Cow::Borrowed(__value);
                     match __key {
                         #( #read_attr_fields, )*
                         key => log::info!(
@@ -131,6 +125,7 @@ fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
                                 concat!("[", stringify!(#ele_name), "] Skip element `{}`"),
                                 __tag
                             );
+
                             // skip the start tag
                             reader.next();
                             reader.read_to_end(__tag)?;
@@ -173,84 +168,60 @@ fn read_struct_element(struct_ele: &StructElement) -> TokenStream {
 }
 
 fn init_value(name: &Ident, ty: &Type) -> TokenStream {
-    match ty {
-        Type::VecT(_) | Type::VecCowStr => quote! { let mut #name = Vec::new(); },
-        Type::OptionCowStr
-        | Type::OptionT(_)
-        | Type::OptionBool
-        | Type::OptionUsize
-        | Type::CowStr
-        | Type::T(_)
-        | Type::Bool
-        | Type::Usize => quote! { let mut #name = None; },
+    if ty.is_vec() {
+        quote! { let mut #name = Vec::new(); }
+    } else {
+        quote! { let mut #name = None; }
     }
 }
 
 fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &Ident) -> TokenStream {
-    match ty {
-        Type::OptionCowStr
-        | Type::OptionT(_)
-        | Type::OptionBool
-        | Type::OptionUsize
-        | Type::VecCowStr
-        | Type::VecT(_) => quote! { #name },
-        Type::CowStr | Type::T(_) | Type::Usize | Type::Bool => {
-            if default {
-                quote! { #name: #name.unwrap_or_default() }
-            } else {
-                quote! {
-                    #name: #name.ok_or(XmlError::MissingField {
-                        name: stringify!(#ele_name).to_owned(),
-                        field: stringify!(#name).to_owned(),
-                    })?
-                }
-            }
+    if ty.is_vec() || ty.is_option() {
+        quote! { #name }
+    } else if default {
+        quote! { #name: #name.unwrap_or_default() }
+    } else {
+        quote! {
+            #name: #name.ok_or(XmlError::MissingField {
+                name: stringify!(#ele_name).to_owned(),
+                field: stringify!(#name).to_owned(),
+            })?
         }
     }
 }
 
 fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
-    match &ty {
-        Type::CowStr | Type::OptionCowStr => quote! {
+    let from_str = from_str(ty);
+
+    if ty.is_vec() {
+        panic!("`attr` attribute doesn't support Vec.");
+    } else {
+        quote! {
             #tag => {
                 log::trace!(
                     concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
                 );
 
-                #name = Some(Cow::Borrowed(__value));
+                #name = Some(#from_str);
             }
-        },
-        Type::Bool | Type::OptionBool => quote! {
-            #tag => {
-                log::trace!(
-                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
-                );
+        }
+    }
+}
 
-                use std::str::FromStr;
-                #name = Some(bool::from_str(__value).or(usize::from_str(__value).map(|v| v != 0))?);
-            }
-        },
-        Type::Usize | Type::OptionUsize => quote! {
-            #tag => {
-                log::trace!(
-                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
-                );
+fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
+    let from_str = from_str(ty);
 
-                use std::str::FromStr;
-                #name = Some(usize::from_str(__value)?);
-            }
-        },
-        Type::T(ty) | Type::OptionT(ty) => quote! {
-            #tag => {
-                log::trace!(
-                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
-                );
+    if ty.is_vec() {
+        panic!("`text` attribute doesn't support Vec.");
+    } else {
+        quote! {
+            log::trace!(
+                concat!("[", stringify!(#ele_name), "] Reading text field `", stringify!(#name), "`")
+            );
 
-                use std::str::FromStr;
-                #name = Some(#ty::from_str(__value)?);
-            }
-        },
-        _ => panic!("#[xml(attr =\"\")] only supports Cow<str>, Option<Cow<str>>, bool, Option<bool>, usize, Option<usize> and Option<T>.")
+            let __value = reader.read_text(#tag)?;
+            #name = Some(#from_str);
+        }
     }
 }
 
@@ -275,6 +246,7 @@ fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &Ident) -> 
                         log::trace!(
                             concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
                         );
+
                         #name.push(#ty::from_reader(reader)?);
                     }
                 }
@@ -287,6 +259,7 @@ fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &Ident) -> 
                         log::trace!(
                             concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
                         );
+
                         #name = Some(#ident::from_reader(reader)?);
                     }
                 }
@@ -301,35 +274,61 @@ fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &Ident) -> 
                 }
             }
         }
-        _ => panic!("#[xml(child = \"\")] only support Vec<T>, Option<T> and T."),
+        _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
     }
 }
 
 fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
-    match ty {
-        Type::VecCowStr => quote! {
+    let from_str = from_str(ty);
+
+    if ty.is_vec() {
+        quote! {
             #tag => {
                 // skip element start
                 reader.next();
+
                 log::trace!(
                     concat!("[", stringify!(#ele_name), "] Reading flatten_text field `", stringify!(#name), "`")
                 );
-                #name.push(reader.read_text(#tag)?);
+
+                let __value = reader.read_text(#tag)?;
+                #name.push(#from_str);
             }
-        },
-        Type::CowStr | Type::OptionCowStr => quote! {
+        }
+    } else {
+        quote! {
             #tag => {
                 // skip element start
                 reader.next();
+
                 log::trace!(
                     concat!("[", stringify!(#ele_name), "] Reading flatten_text field `", stringify!(#name), "`")
                 );
-                #name = Some(reader.read_text(#tag)?);
+
+                let __value = reader.read_text(#tag)?;
+                #name = Some(#from_str);
+            }
+        }
+    }
+}
+
+fn from_str(ty: &Type) -> TokenStream {
+    match &ty {
+        Type::CowStr | Type::OptionCowStr | Type::VecCowStr => quote! { __value },
+        Type::Bool | Type::OptionBool | Type::VecBool => quote! {
+            match &*__value {
+                "t" | "true" | "y" | "yes" | "on" | "1" => true,
+                "f" | "false" | "n" | "no" | "off" | "0" => false,
+                _ => <bool as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))?
             }
         },
-        _ => panic!(
-            "#[xml(flatten_text)] only support Cow<str>, Vec<Cow<str>> and Option<Cow<str>>."
-        ),
+        Type::T(ty) | Type::OptionT(ty) | Type::VecT(ty) => {
+            if let Some(ty) = trim_lifetime(ty) {
+                quote! { <#ty as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))? }
+            } else {
+                quote! { <#ty as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))? }
+            }
+        }
     }
 }
 
@@ -358,6 +357,7 @@ fn read_enum_element(enum_ele: &EnumElement) -> TokenStream {
                                 concat!("[", stringify!(#ele_name), "] Skip element {}"),
                                 tag
                             );
+
                             // skip the start tag
                             reader.next();
                             reader.read_to_end(tag)?;
