@@ -94,9 +94,8 @@ assert_eq!(
 #### `#[xml(attr = "")]`
 
 Specifies that a struct field is attribute. Support
-`Cow<str>`, `Option<Cow<str>>`, `bool`, `Option<bool>`,
-`usize`, `Option<usize>`, `T` and `Option<T>` where
-`T: std::str::FromStr`.
+`Cow<str>`, `Option<Cow<str>>`, `T` and `Option<T>`
+where `T: FromStr + Display`.
 
 ```rust
 use strong_xml::{XmlRead, XmlWrite};
@@ -170,7 +169,8 @@ assert_eq!(
 #### `#[xml(text)]`
 
 Specifies that a struct field is text content.
-Support `Cow<str>`.
+Support `Cow<str>`, `Vec<Cow<str>>`, `Option<Cow<str>>`,
+`T`, `Vec<T>`, `Option<T>` where `T: FromStr + Display`.
 
 ```rust
 use std::borrow::Cow;
@@ -197,7 +197,8 @@ assert_eq!(
 #### `#[xml(flatten_text = "")]`
 
 Specifies that a struct field is child text element.
-Support `Cow<str>`, `Vec<Cow<str>>` and `Option<Cow<str>>`.
+Support `Cow<str>`, `Vec<Cow<str>>`, `Option<Cow<str>>`,
+`T`, `Vec<T>`, `Option<T>` where `T: FromStr + Display`.
 
 ```rust
 use std::borrow::Cow;
@@ -218,6 +219,32 @@ assert_eq!(
 assert_eq!(
     Parent::from_str(r#"<parent><child></child></parent>"#).unwrap(),
     Parent { content: "".into() }
+);
+```
+
+#### `#[xml(default)]`
+
+Use `Default::default()` if the value is not present when reading.
+
+```rust
+use std::borrow::Cow;
+use strong_xml::XmlRead;
+
+#[derive(XmlRead, PartialEq, Debug)]
+#[xml(tag = "root")]
+struct Root {
+    #[xml(default, attr = "attr")]
+    attr: bool,
+}
+
+assert_eq!(
+    Root::from_str(r#"<root/>"#).unwrap(),
+    Root { attr: false }
+);
+
+assert_eq!(
+    Root::from_str(r#"<root attr="1"/>"#).unwrap(),
+    Root { attr: true }
 );
 ```
 
