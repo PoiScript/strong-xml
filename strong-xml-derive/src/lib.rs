@@ -2,15 +2,14 @@
 
 extern crate proc_macro;
 
+mod read;
 mod types;
-mod xml_read;
-mod xml_write;
+mod write;
 
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput, GenericParam};
-
-use crate::{types::Element, xml_read::read, xml_write::write};
+use types::Element;
 
 #[proc_macro_derive(XmlRead, attributes(xml))]
 pub fn derive_xml_read(input: TokenStream) -> TokenStream {
@@ -24,25 +23,22 @@ pub fn derive_xml_read(input: TokenStream) -> TokenStream {
         _ => None,
     };
 
-    let element = Element::parse(&input);
-
-    let impl_read = read(&element);
+    let impl_read = read::impl_read(Element::parse(input.clone()));
 
     let gen = quote! {
         impl #generics #name #generics {
-            pub(crate) fn from_str(
+            fn from_str(
                 text: & #lifetime str
             ) -> strong_xml::XmlResult<#name #generics> {
                 let mut reader = strong_xml::XmlReader::new(text);
                 Self::from_reader(&mut reader)
             }
 
-            pub(crate) fn from_reader(
+            fn from_reader(
                 mut reader: &mut strong_xml::XmlReader #generics
             ) -> strong_xml::XmlResult<#name #generics> {
                 use strong_xml::xmlparser::{ElementEnd, Token, Tokenizer};
                 use strong_xml::XmlError;
-
                 #impl_read
             }
         }
@@ -58,9 +54,7 @@ pub fn derive_xml_write(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let generics = &input.generics;
 
-    let element = Element::parse(&input);
-
-    let impl_write = write(&element);
+    let impl_write = write::impl_write(Element::parse(input.clone()));
 
     let gen = quote! {
         impl #generics #name #generics {

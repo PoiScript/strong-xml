@@ -2,73 +2,67 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, LitStr};
 
-use crate::types::{Element, EnumElement, StructElement, Type};
+use crate::types::{Field, Type};
 
-pub fn write(element: &Element) -> TokenStream {
-    match element {
-        Element::Enum(enum_ele) => write_enum_ele(enum_ele),
-        Element::Struct(struct_ele) => write_struct_ele(struct_ele),
-    }
-}
+pub fn write(tag: &LitStr, ele_name: &Ident, fields: &Vec<Field>) -> TokenStream {
+    let write_attributes = fields.iter().filter_map(|field| match field {
+        Field::Attribute { tag, name, ty, .. } => Some(write_attrs(&tag, &name, &ty)),
+        _ => None,
+    });
 
-fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
-    let ele_name = &struct_ele.name;
-    let tag = &struct_ele.tag;
-    let attr_fields = &struct_ele.attributes;
-    let child_fields = &struct_ele.children;
-    let flatten_text_fields = &struct_ele.flatten_text;
-    let text_field = &struct_ele.text;
+    let write_text = fields.iter().filter_map(|field| match field {
+        Field::Text { name, ty, .. } => Some(write_text(tag, name, ty)),
+        _ => None,
+    });
 
-    let extend_attrs = &struct_ele
-        .extend_attrs
-        .as_ref()
-        .map(|extend_attrs| quote! { #extend_attrs(&self, &mut writer)?; });
+    let write_flatten_text = fields.iter().filter_map(|field| match field {
+        Field::FlattenText { tag, name, ty, .. } => Some(write_flatten_text(tag, name, ty)),
+        _ => None,
+    });
 
-    let write_attr_fields = attr_fields
+    let write_child = fields.iter().filter_map(|field| match field {
+        Field::Child { name, ty, .. } => Some(write_child(name, ty)),
+        _ => None,
+    });
+
+    let is_leaf_element = fields
         .iter()
-        .map(|e| write_attrs(&e.tag, &e.name, &e.ty));
+        .all(|field| matches!(field, Field::Attribute { .. }));
 
-    let is_leaf_element =
-        child_fields.is_empty() && flatten_text_fields.is_empty() && text_field.is_none();
-
-    let can_be_self_close = child_fields
+    let is_text_element = fields
         .iter()
-        .map(|e| &e.ty)
-        .chain(flatten_text_fields.iter().map(|e| &e.ty))
-        .all(|ty| ty.is_vec() || ty.is_option());
+        .any(|field| matches!(field, Field::Text { .. }));
+
+    let can_self_close = fields.iter().all(|field| match field {
+        Field::Child { ty, .. } | Field::FlattenText { ty, .. } => ty.is_vec() || ty.is_option(),
+        _ => true,
+    });
+
+    let content_is_empty = fields.iter().filter_map(|field| match field {
+        Field::Child { ty, name, .. } | Field::FlattenText { ty, name, .. } => {
+            if ty.is_vec() {
+                Some(quote! { #name.is_empty() })
+            } else if ty.is_option() {
+                Some(quote! { #name.is_none() })
+            } else {
+                None
+            }
+        }
+        _ => None,
+    });
 
     let write_element_end = if is_leaf_element {
         quote! { write!(&mut writer, "/>")?; }
-    } else if let Some(text_field) = text_field {
-        write_text(tag, &text_field.name, &text_field.ty)
+    } else if is_text_element {
+        quote! { #( #write_text )* }
     } else {
-        let content_is_empty = child_fields
-            .iter()
-            .map(|e| (&e.name, &e.ty))
-            .chain(flatten_text_fields.iter().map(|e| (&e.name, &e.ty)))
-            .flat_map(|(name, ty)| {
-                if ty.is_vec() {
-                    Some(quote! { self.#name.is_empty() })
-                } else if ty.is_option() {
-                    Some(quote! { self.#name.is_none() })
-                } else {
-                    None
-                }
-            });
-
-        let write_child_fields = child_fields.iter().map(|e| write_child(&e.name, &e.ty));
-
-        let write_flatten_text_fields = flatten_text_fields
-            .iter()
-            .map(|e| write_flatten_text(&e.tag, &e.name, &e.ty));
-
         quote! {
-            if #can_be_self_close #( && #content_is_empty )* {
+            if #can_self_close #( && #content_is_empty )* {
                 write!(&mut writer, "/>")?;
             } else {
                 write!(&mut writer, ">")?;
-                #( #write_child_fields )*
-                #( #write_flatten_text_fields )*
+                #( #write_child )*
+                #( #write_flatten_text )*
                 write!(&mut writer, concat!("</", #tag, ">"))?;
             }
         }
@@ -79,9 +73,7 @@ fn write_struct_ele(struct_ele: &StructElement) -> TokenStream {
 
         write!(&mut writer, concat!("<", #tag))?;
 
-        #( #write_attr_fields )*
-
-        #extend_attrs
+        #( #write_attributes )*
 
         #write_element_end
 
@@ -96,13 +88,13 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
         panic!("`attr` attribute doesn't support Vec.");
     } else if ty.is_option() {
         quote! {
-            if let Some(ref __value) = self.#name {
+            if let Some(ref __value) = #name {
                 write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
             }
         }
     } else {
         quote! {
-            let __value = &self.#name;
+            let __value = #name;
             write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
         }
     }
@@ -111,17 +103,17 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
 fn write_child(name: &Ident, ty: &Type) -> TokenStream {
     match ty {
         Type::OptionT(_) => quote! {
-            if let Some(ref ele) = self.#name {
+            if let Some(ref ele) = #name {
                 ele.to_writer(&mut writer)?;
             }
         },
         Type::VecT(_) => quote! {
-            for ele in &self.#name {
+            for ele in #name {
                 ele.to_writer(&mut writer)?;
             }
         },
         Type::T(_) => quote! {
-            &self.#name.to_writer(&mut writer)?;
+            &#name.to_writer(&mut writer)?;
         },
         _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
     }
@@ -133,7 +125,7 @@ fn write_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     quote! {
         write!(&mut writer, ">")?;
 
-        let __value = &self.#name;
+        let __value = &#name;
 
         write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
 
@@ -146,7 +138,7 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
 
     if ty.is_vec() {
         quote! {
-           for __value in &self.#name {
+           for __value in #name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
 
                 write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
@@ -156,7 +148,7 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
         }
     } else if ty.is_option() {
         quote! {
-            if let Some(__value) = &self.#name {
+            if let Some(__value) = #name {
                 write!(&mut writer, concat!("<" , #tag, ">"))?;
 
                 write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
@@ -168,7 +160,7 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
         quote! {
             write!(&mut writer, concat!("<" , #tag, ">"))?;
 
-            let __value = &self.#name;
+            let __value = &#name;
 
             write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
 
@@ -190,17 +182,6 @@ fn to_str(ty: &Type) -> TokenStream {
         },
         Type::T(_) | Type::OptionT(_) | Type::VecT(_) => {
             quote! { &format!("{}", __value) }
-        }
-    }
-}
-
-fn write_enum_ele(enum_ele: &EnumElement) -> TokenStream {
-    let name = &enum_ele.name;
-    let var_names = enum_ele.elements.iter().map(|var| &var.name);
-
-    quote! {
-        match self {
-            #( #name::#var_names(s) => s.to_writer(writer)?, )*
         }
     }
 }
