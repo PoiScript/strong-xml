@@ -1,4 +1,6 @@
 use std::borrow::Cow;
+use std::iter::{Iterator, Peekable};
+
 use xmlparser::ElementEnd;
 use xmlparser::Error;
 use xmlparser::Token;
@@ -12,31 +14,25 @@ use crate::{XmlError, XmlResult};
 /// It behaves almost exactly like `xmlparser::Tokenizer::from("...").peekable()`
 /// but with some helper functions.
 pub struct XmlReader<'a> {
-    peeked: Option<Option<Result<Token<'a>, Error>>>,
-    tokenizer: Tokenizer<'a>,
+    tokenizer: Peekable<Tokenizer<'a>>,
 }
 
 impl<'a> XmlReader<'a> {
     #[inline]
     pub fn new(text: &'a str) -> XmlReader<'a> {
         XmlReader {
-            peeked: None,
-            tokenizer: Tokenizer::from(text),
+            tokenizer: Tokenizer::from(text).peekable(),
         }
     }
 
     #[inline]
     pub fn next(&mut self) -> Option<Result<Token<'a>, Error>> {
-        match self.peeked.take() {
-            Some(v) => v,
-            None => self.tokenizer.next(),
-        }
+        self.tokenizer.next()
     }
 
     #[inline]
     pub fn peek(&mut self) -> Option<&Result<Token<'a>, Error>> {
-        let tokenizer = &mut self.tokenizer;
-        self.peeked.get_or_insert_with(|| tokenizer.next()).as_ref()
+        self.tokenizer.peek()
     }
 
     #[inline]
@@ -103,6 +99,83 @@ impl<'a> XmlReader<'a> {
             }
         }
         Ok(())
+    }
+
+    #[inline]
+    pub fn find_attribute(&mut self) -> XmlResult<Option<(&'a str, Cow<'a, str>)>> {
+        if let Some(token) = self.tokenizer.peek() {
+            match token {
+                Ok(Token::Attribute { span, value, .. }) => {
+                    let value = value.as_str();
+                    let span = span.as_str();
+                    let key = &span[0..span.len() - value.len() - 3];
+                    let value = std::borrow::Cow::Borrowed(value);
+                    self.next();
+                    return Ok(Some((key, value)));
+                }
+                Ok(Token::ElementEnd {
+                    end: ElementEnd::Open,
+                    ..
+                })
+                | Ok(Token::ElementEnd {
+                    end: ElementEnd::Empty,
+                    ..
+                }) => return Ok(None),
+                Ok(token) => {
+                    return Err(XmlError::UnexpectedToken {
+                        token: format!("{:?}", token),
+                    })
+                }
+                Err(_) => {
+                    // we have call .peek() above, and it's safe to use unwrap
+                    self.next().unwrap()?;
+                }
+            }
+        }
+
+        Err(XmlError::UnexpectedEof)
+    }
+
+    #[inline]
+    pub fn find_element_start(&mut self, end_tag: Option<&str>) -> XmlResult<Option<&'a str>> {
+        while let Some(token) = self.tokenizer.peek() {
+            match token {
+                Ok(Token::ElementStart { span, .. }) => {
+                    return Ok(Some(&span.as_str()[1..]));
+                }
+                Ok(Token::ElementEnd {
+                    end: ElementEnd::Close(_, _),
+                    span,
+                }) if end_tag.is_some() => {
+                    let end_tag = end_tag.unwrap();
+                    let span = span.as_str();
+                    let tag = &span[2..span.len() - 1];
+                    if tag == end_tag {
+                        self.next();
+                        return Ok(None);
+                    } else {
+                        return Err(XmlError::TagMismatch {
+                            expected: end_tag.to_owned(),
+                            found: tag.to_owned(),
+                        });
+                    }
+                }
+                Ok(Token::ElementEnd { .. })
+                | Ok(Token::Attribute { .. })
+                | Ok(Token::Text { .. })
+                | Ok(Token::Cdata { .. }) => {
+                    return Err(XmlError::UnexpectedToken {
+                        token: format!("{:?}", token),
+                    })
+                }
+                _ => {
+                    // we have call .peek() above, and it's safe to use unwrap
+                    self.next().unwrap()?;
+                }
+            }
+        }
+
+        Err(XmlError::UnexpectedEof)
     }
 
     #[inline]
