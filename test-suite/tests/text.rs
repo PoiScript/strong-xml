@@ -15,8 +15,6 @@ fn test() -> XmlResult<()> {
         .format_timestamp(None)
         .try_init();
 
-    assert_eq!(Root { content: "".into() }, Root::from_str(r#"<root/>"#)?);
-
     assert_eq!(
         Root { content: "".into() },
         Root::from_str(r#"<root></root>"#)?

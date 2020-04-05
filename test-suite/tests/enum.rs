@@ -33,11 +33,25 @@ enum CD {
 }
 
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-enum ABCD {
+enum ABCDEFG {
     #[xml(tag = "a", tag = "b")]
     AB(AB),
     #[xml(tag = "c", tag = "d")]
     CD(CD),
+    #[xml(tag = "e")]
+    E,
+    #[xml(tag = "f")]
+    F {
+        #[xml(text)]
+        foo: String,
+    },
+    #[xml(tag = "g")]
+    G {
+        #[xml(attr = "foo")]
+        foo: usize,
+        #[xml(flatten_text = "bar")]
+        bar: bool,
+    },
 }
 
 #[test]
@@ -47,9 +61,23 @@ fn test() -> XmlResult<()> {
         .format_timestamp(None)
         .try_init();
 
-    assert_eq!((ABCD::AB(AB::A(A))).to_string()?, "<a/>");
+    assert_eq!((ABCDEFG::AB(AB::A(A))).to_string()?, "<a/>");
 
-    assert_eq!(ABCD::from_str("<d/>")?, ABCD::CD(CD::D(D)));
+    assert_eq!(
+        (ABCDEFG::G {
+            foo: 42,
+            bar: false
+        })
+        .to_string()?,
+        r#"<g foo="42"><bar>false</bar></g>"#
+    );
+
+    assert_eq!(ABCDEFG::from_str("<d/>")?, ABCDEFG::CD(CD::D(D)));
+
+    assert_eq!(
+        ABCDEFG::from_str("<f>foo</f>")?,
+        ABCDEFG::F { foo: "foo".into() }
+    );
 
     Ok(())
 }
