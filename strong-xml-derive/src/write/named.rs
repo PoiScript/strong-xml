@@ -52,18 +52,18 @@ pub fn write(tag: &LitStr, ele_name: &Ident, fields: &Vec<Field>) -> TokenStream
     });
 
     let write_element_end = if is_leaf_element {
-        quote! { write!(&mut writer, "/>")?; }
+        quote! { writer.write_element_end_empty()?; }
     } else if is_text_element {
         quote! { #( #write_text )* }
     } else {
         quote! {
             if #can_self_close #( && #content_is_empty )* {
-                write!(&mut writer, "/>")?;
+                writer.write_element_end_empty()?;
             } else {
-                write!(&mut writer, ">")?;
+                writer.write_element_end_open()?;
                 #( #write_child )*
                 #( #write_flatten_text )*
-                write!(&mut writer, concat!("</", #tag, ">"))?;
+                writer.write_element_end_close(#tag)?;
             }
         }
     };
@@ -71,7 +71,7 @@ pub fn write(tag: &LitStr, ele_name: &Ident, fields: &Vec<Field>) -> TokenStream
     quote! {
         log::debug!(concat!("[", stringify!(#ele_name), "] Started writing."));
 
-        write!(&mut writer, concat!("<", #tag))?;
+        writer.write_element_start(#tag)?;
 
         #( #write_attributes )*
 
@@ -88,14 +88,14 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
         panic!("`attr` attribute doesn't support Vec.");
     } else if ty.is_option() {
         quote! {
-            if let Some(ref __value) = #name {
-                write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
+            if let Some(__value) = #name {
+                writer.write_attribute(#tag, #to_str)?;
             }
         }
     } else {
         quote! {
             let __value = #name;
-            write!(&mut writer, concat!(" ", #tag, "=\"{}\""), #to_str)?;
+            writer.write_attribute(#tag, #to_str)?;
         }
     }
 }
@@ -123,13 +123,13 @@ fn write_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     let to_str = to_str(ty);
 
     quote! {
-        write!(&mut writer, ">")?;
-
         let __value = &#name;
 
-        write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+        writer.write_element_end_open()?;
 
-        write!(&mut writer, concat!("</" , #tag, ">"))?;
+        writer.write_text(#to_str)?;
+
+        writer.write_element_end_close(#tag)?;
     }
 }
 
@@ -139,32 +139,35 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     if ty.is_vec() {
         quote! {
            for __value in #name {
-                write!(&mut writer, concat!("<" , #tag, ">"))?;
+                writer.write_element_start(#tag)?;
+                writer.write_element_end_open()?;
 
-                write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+                writer.write_text(#to_str)?;
 
-                write!(&mut writer, concat!("</" , #tag, ">"))?;
+                writer.write_element_end_close(#tag)?;
             }
         }
     } else if ty.is_option() {
         quote! {
             if let Some(__value) = #name {
-                write!(&mut writer, concat!("<" , #tag, ">"))?;
+                writer.write_element_start(#tag)?;
+                writer.write_element_end_open()?;
 
-                write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+                writer.write_text(#to_str)?;
 
-                write!(&mut writer, concat!("</" , #tag, ">"))?;
+                writer.write_element_end_close(#tag)?;
             }
         }
     } else {
         quote! {
-            write!(&mut writer, concat!("<" , #tag, ">"))?;
-
             let __value = &#name;
 
-            write!(&mut writer, "{}", strong_xml::utils::xml_escape(#to_str))?;
+            writer.write_element_start(#tag)?;
+            writer.write_element_end_open()?;
 
-            write!(&mut writer, concat!("</" , #tag, ">"))?;
+            writer.write_text(#to_str)?;
+
+            writer.write_element_end_close(#tag)?;
         }
     }
 }

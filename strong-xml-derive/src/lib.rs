@@ -59,16 +59,16 @@ pub fn derive_xml_write(input: TokenStream) -> TokenStream {
     let gen = quote! {
         impl #generics #name #generics {
             pub(crate) fn to_string(&self) -> strong_xml::XmlResult<String> {
-                let mut writer = Vec::new();
+                let mut writer = strong_xml::XmlWriter::new(Vec::new());
 
                 self.to_writer(&mut writer)?;
 
-                Ok(String::from_utf8(writer)?)
+                Ok(String::from_utf8(writer.inner)?)
             }
 
             pub(crate) fn to_writer<W: std::io::Write>(
                 &self,
-                mut writer: W
+                mut writer: &mut strong_xml::XmlWriter<W>
             ) -> strong_xml::XmlResult<()> {
                 #impl_write
 
