@@ -9,28 +9,21 @@ use quote::quote;
 
 pub fn impl_read(element: Element) -> TokenStream {
     match element {
-        Element::Enum { name, variants } => {
+        Element::Enum {
+            name: ele_name,
+            variants,
+        } => {
             let tags = variants.iter().map(|variant| match variant {
                 Fields::Unname { tags, .. } => tags.clone(),
                 Fields::Named { tag, .. } | Fields::Unit { tag, .. } => vec![tag.clone()],
             });
 
-            let read = variants.iter().map(|variant| {
-                let var_name = match variant {
-                    Fields::Named { name, .. }
-                    | Fields::Unname { name, .. }
-                    | Fields::Unit { name, .. } => name,
-                };
-
-                let path = quote!(#name::#var_name);
-
-                match variant {
-                    Fields::Named { tag, name, fields } => {
-                        named::read(&tag, &name, &fields, Some(path))
-                    }
-                    Fields::Unname { name, ty, .. } => unname::read(&name, &name, Some(path)),
-                    Fields::Unit { tag, name } => unit::read(&tag, path.into(), &name, None),
+            let read = variants.iter().map(|variant| match variant {
+                Fields::Named { tag, name, fields } => {
+                    named::read(&tag, quote!(#ele_name::#name), &fields)
                 }
+                Fields::Unname { name, ty, .. } => unname::read(&ty, quote!(#ele_name::#name)),
+                Fields::Unit { tag, name } => unit::read(&tag, quote!(#ele_name::#name)),
             });
 
             quote! {
@@ -39,7 +32,7 @@ pub fn impl_read(element: Element) -> TokenStream {
                         #( #( #tags )|* => { #read } )*
                         tag => {
                             log::info!(
-                                concat!("[", stringify!(#name), "] Skip element `{}`"),
+                                concat!("[", stringify!(#ele_name), "] Skip element `{}`"),
                                 tag
                             );
                             // skip the start tag
@@ -53,10 +46,10 @@ pub fn impl_read(element: Element) -> TokenStream {
             }
         }
 
-        Element::Struct { name, fields } => match fields {
-            Fields::Named { tag, name, fields } => named::read(&tag, &name, &fields, None),
-            Fields::Unname { name, ty, .. } => unname::read(&name, &name, None),
-            Fields::Unit { tag, name } => unit::read(&tag, quote!(#name).into(), &name, None),
+        Element::Struct { fields, .. } => match fields {
+            Fields::Named { tag, name, fields } => named::read(&tag, quote!(#name).into(), &fields),
+            Fields::Unname { name, ty, .. } => unname::read(&ty, quote!(#name).into()),
+            Fields::Unit { tag, name } => unit::read(&tag, quote!(#name).into()),
         },
     }
 }

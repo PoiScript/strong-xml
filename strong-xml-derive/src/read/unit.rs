@@ -1,13 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, LitStr};
+use syn::LitStr;
 
-pub fn read(
-    tag: &LitStr,
-    name: TokenStream,
-    ele_name: &Ident,
-    path: Option<TokenStream>,
-) -> TokenStream {
+pub fn read(tag: &LitStr, ele_name: TokenStream) -> TokenStream {
     quote! {
         log::debug!(concat!("[", stringify!(#ele_name), "] Started reading"));
 
@@ -17,6 +12,6 @@ pub fn read(
 
         log::debug!(concat!("[", stringify!(#ele_name), "] Finished reading"));
 
-        return Ok(#path(#name));
+        return Ok(#ele_name);
     }
 }

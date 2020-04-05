@@ -1,8 +1,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, LitStr};
+use syn::LitStr;
 
-pub fn write(name: &Ident, tag: &LitStr, ele_name: &Ident) -> TokenStream {
+pub fn write(tag: &LitStr, ele_name: TokenStream) -> TokenStream {
     quote! {
         log::debug!(concat!("[", stringify!(#ele_name), "] Started writing."));
 

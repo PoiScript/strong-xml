@@ -4,17 +4,12 @@ use syn::{Ident, LitStr};
 
 use crate::types::{Field, Type};
 
-pub fn read(
-    tag: &LitStr,
-    ele_name: &Ident,
-    fields: &Vec<Field>,
-    path: Option<TokenStream>,
-) -> TokenStream {
+pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenStream {
     let init_fields = fields.iter().map(|field| match field {
         Field::Attribute { name, ty, .. }
         | Field::Child { name, ty, .. }
-        | Field::Text { name, ty, .. }
         | Field::FlattenText { name, ty, .. } => init_value(name, ty),
+        Field::Text { name, .. } => quote! { let #name; },
     });
 
     let return_fields = fields.iter().map(|field| match field {
@@ -52,20 +47,51 @@ pub fn read(
         _ => None,
     });
 
-    let has_text_field = fields
+    let is_text_element = fields
         .iter()
         .any(|field| matches!(field, Field::Text { .. }));
 
     let return_fields = quote! {
-        let __res = (#ele_name {
+        let __res = #ele_name {
             #( #return_fields, )*
-        });
+        };
 
         log::debug!(
             concat!("[", stringify!(#ele_name), "] Finished reading")
         );
 
-        return Ok(#path(__res));
+        return Ok(__res);
+    };
+
+    let read_content = if is_text_element {
+        quote! {
+            #( #read_text_fields )*
+            #return_fields
+        }
+    } else {
+        quote! {
+            if let Token::ElementEnd { end: ElementEnd::Empty, .. } = reader.next().unwrap()? {
+                #return_fields
+            }
+
+            while let Some(__tag) = reader.find_element_start(Some(#tag))? {
+                match __tag {
+                    #( #read_child_fields, )*
+                    #( #read_flatten_text_fields, )*
+                    tag => {
+                        log::info!(
+                            concat!("[", stringify!(#ele_name), "] Skip element `{}`"),
+                            tag
+                        );
+                        // skip the start tag
+                        reader.next();
+                        reader.read_to_end(tag)?;
+                    },
+                }
+            }
+
+            #return_fields
+        }
     };
 
     quote! {
@@ -85,32 +111,7 @@ pub fn read(
             }
         }
 
-        if #has_text_field {
-            #( #read_text_fields )*
-            #return_fields
-        }
-
-        if let Token::ElementEnd { end: ElementEnd::Empty, .. } = reader.next().unwrap()? {
-            #return_fields
-        }
-
-        while let Some(__tag) = reader.find_element_start(Some(#tag))? {
-            match __tag {
-                #( #read_child_fields, )*
-                #( #read_flatten_text_fields, )*
-                tag => {
-                    log::info!(
-                        concat!("[", stringify!(#ele_name), "] Skip element `{}`"),
-                        tag
-                    );
-                    // skip the start tag
-                    reader.next();
-                    reader.read_to_end(tag)?;
-                },
-            }
-        }
-
-        #return_fields
+        #read_content
     }
 }
 
@@ -122,7 +123,7 @@ fn init_value(name: &Ident, ty: &Type) -> TokenStream {
     }
 }
 
-fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &Ident) -> TokenStream {
+fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &TokenStream) -> TokenStream {
     if ty.is_vec() || ty.is_option() {
         quote! { #name }
     } else if default {
@@ -137,7 +138,7 @@ fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &Ident) -> Tok
     }
 }
 
-fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
+fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let from_str = from_str(ty);
 
     if ty.is_vec() {
@@ -155,7 +156,7 @@ fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenS
     }
 }
 
-fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
+fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let from_str = from_str(ty);
 
     if ty.is_vec() {
@@ -172,7 +173,7 @@ fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenSt
     }
 }
 
-fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
+fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let tags = tags.iter();
 
     match &ty {
@@ -225,7 +226,7 @@ fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &Ident) -> 
     }
 }
 
-fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &Ident) -> TokenStream {
+fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let from_str = from_str(ty);
 
     if ty.is_vec() {

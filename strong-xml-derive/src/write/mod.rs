@@ -9,8 +9,11 @@ use quote::quote;
 
 pub fn impl_write(element: Element) -> TokenStream {
     match element {
-        Element::Enum { name, variants } => {
-            let names = variants.iter().map(|variant| match variant {
+        Element::Enum {
+            name: ele_name,
+            variants,
+        } => {
+            let branches = variants.iter().map(|variant| match variant {
                 Fields::Named { name, fields, .. } => {
                     let names = fields.iter().map(|field| match field {
                         Field::Attribute { name, .. }
@@ -18,26 +21,31 @@ pub fn impl_write(element: Element) -> TokenStream {
                         | Field::Text { name, .. }
                         | Field::FlattenText { name, .. } => name,
                     });
-                    quote!( #name { #( #names ),* } )
+                    quote!( #ele_name::#name { #( #names ),* } )
                 }
-                Fields::Unname { name, .. } => quote!( #name(__inner) ),
-                Fields::Unit { name, .. } => quote!( #name ),
+                Fields::Unname { name, .. } => quote!( #ele_name::#name(__inner) ),
+                Fields::Unit { name, .. } => quote!( #ele_name::#name ),
             });
 
-            let a = variants.iter().map(|variant| match variant {
-                Fields::Named { tag, name, fields } => named::write(&tag, &name, &fields),
-                Fields::Unname { name, .. } => unname::write(&name, &name),
-                Fields::Unit { tag, name } => unit::write(&name, &tag, &name),
+            let read = variants.iter().map(|variant| match variant {
+                Fields::Named { tag, name, fields } => {
+                    named::write(&tag, quote!( #ele_name::#name ), &fields)
+                }
+                Fields::Unname { name, .. } => unname::write(quote!( #ele_name::#name )),
+                Fields::Unit { tag, name } => unit::write(&tag, quote!( #ele_name::#name )),
             });
 
             quote! {
                 match self {
-                    #( #name::#names => { #a }, )*
+                    #( #branches => { #read }, )*
                 }
             }
         }
 
-        Element::Struct { name: struct_name, fields } => match fields {
+        Element::Struct {
+            name: ele_name,
+            fields,
+        } => match fields {
             Fields::Named { tag, name, fields } => {
                 let names = fields.iter().map(|field| match field {
                     Field::Attribute { name, .. }
@@ -46,16 +54,24 @@ pub fn impl_write(element: Element) -> TokenStream {
                     | Field::FlattenText { name, .. } => name,
                 });
 
-                let a = named::write(&tag, &name, &fields);
+                let read = named::write(&tag, quote!(#name), &fields);
 
                 quote! {
-                    let #struct_name { #( #names ),* } = self;
+                    let #ele_name { #( #names ),* } = self;
 
-                    #a
+                    #read
                 }
             }
-            Fields::Unname { name, ty, .. } => unname::write(&name, &name),
-            Fields::Unit { tag, name } => unit::write(&name, &tag, &name),
+            Fields::Unname { name, .. } => {
+                let read = unname::write(quote!(#name));
+
+                quote! {
+                    let __inner = &self.0;
+
+                    #read
+                }
+            }
+            Fields::Unit { tag, name } => unit::write(&tag, quote!(#name)),
         },
     }
 }
