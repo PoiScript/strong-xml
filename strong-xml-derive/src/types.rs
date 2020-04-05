@@ -8,14 +8,14 @@ pub enum Element {
 pub enum Fields {
     /// Named fields of a struct or struct variant
     ///
-    /// ```
+    /// ```ignore
     /// #[xml(tag = "$tag")]
     /// struct $name {
     ///     $( $fields )*
     /// }
     /// ```
     ///
-    /// ```
+    /// ```ignore
     /// enum Foo {
     ///     #[xml(tag = "$tag")]
     ///     $name {
@@ -30,12 +30,12 @@ pub enum Fields {
     },
     /// Unnamed fields of a tuple struct or tuple variant
     ///
-    /// ```
+    /// ```ignore
     /// #[xml(tag = "$tags[0]", tag = "$tags[1]")]
     /// struct $name($ty);
     /// ```
     ///
-    /// ```
+    /// ```ignore
     /// enum Foo {
     ///     #[xml(tag = "$tags[0]", tag = "$tags[1]")]
     ///     $name($ty)
@@ -48,12 +48,12 @@ pub enum Fields {
     },
     /// Unit struct or unit variant
     ///
-    /// ```
+    /// ```ignore
     /// #[xml(tag = "$tag")]
     /// struct $name;
     /// ```
     ///
-    /// ```
+    /// ```ignore
     /// enum Foo {
     ///     #[xml(tag = "$tag")]
     ///     $name,
@@ -65,7 +65,7 @@ pub enum Fields {
 pub enum Field {
     /// Arrtibute Field
     ///
-    /// ```
+    /// ```ignore
     /// struct Foo {
     ///     #[xml(attr = "$tag", $default)]
     ///     $name: $ty,
@@ -79,7 +79,7 @@ pub enum Field {
     },
     /// Child(ren) Field
     ///
-    /// ```
+    /// ```ignore
     /// struct Foo {
     ///     #[xml(child = "$tag", child = "$tag", $default)]
     ///     $name: $ty,
@@ -93,7 +93,7 @@ pub enum Field {
     },
     /// Text Field
     ///
-    /// ```
+    /// ```ignore
     /// struct Foo {
     ///     #[xml(text, $default)]
     ///     $name: $ty,
@@ -102,7 +102,7 @@ pub enum Field {
     Text { name: Ident, ty: Type },
     /// Flatten Text
     ///
-    /// ```
+    /// ```ignore
     /// struct Foo {
     ///     #[xml(flatten_text = "$tag", $default)]
     ///     $name: $ty,
