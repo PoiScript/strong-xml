@@ -27,14 +27,14 @@ pub fn derive_xml_read(input: TokenStream) -> TokenStream {
 
     let gen = quote! {
         impl #generics #name #generics {
-            fn from_str(
+            pub(crate) fn from_str(
                 text: & #lifetime str
             ) -> strong_xml::XmlResult<#name #generics> {
                 let mut reader = strong_xml::XmlReader::new(text);
                 Self::from_reader(&mut reader)
             }
 
-            fn from_reader(
+            pub(crate) fn from_reader(
                 mut reader: &mut strong_xml::XmlReader #generics
             ) -> strong_xml::XmlResult<#name #generics> {
                 use strong_xml::xmlparser::{ElementEnd, Token, Tokenizer};
