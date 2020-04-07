@@ -32,12 +32,19 @@ impl<W: Write> XmlWriter<W> {
         write!(self.inner, ">")
     }
 
+    pub fn write_flatten_text(&mut self, tag: &str, content: &str) -> Result<()> {
+        self.write_element_start(tag)?;
+        self.write_element_end_open()?;
+        self.write_text(content)?;
+        self.write_element_end_close(tag)?;
+        Ok(())
+    }
+
     pub fn write_element_end_close(&mut self, tag: &str) -> Result<()> {
         write!(self.inner, "</{}>", tag)
     }
 
     pub fn write_element_end_empty(&mut self) -> Result<()> {
-        write!(self.inner, "/>")?;
-        Ok(())
+        write!(self.inner, "/>")
     }
 }

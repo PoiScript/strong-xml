@@ -139,35 +139,19 @@ fn write_flatten_text(tag: &LitStr, name: &Ident, ty: &Type) -> TokenStream {
     if ty.is_vec() {
         quote! {
            for __value in #name {
-                writer.write_element_start(#tag)?;
-                writer.write_element_end_open()?;
-
-                writer.write_text(#to_str)?;
-
-                writer.write_element_end_close(#tag)?;
+                writer.write_flatten_text(#tag, #to_str)?;
             }
         }
     } else if ty.is_option() {
         quote! {
             if let Some(__value) = #name {
-                writer.write_element_start(#tag)?;
-                writer.write_element_end_open()?;
-
-                writer.write_text(#to_str)?;
-
-                writer.write_element_end_close(#tag)?;
+                writer.write_flatten_text(#tag, #to_str)?;
             }
         }
     } else {
         quote! {
             let __value = &#name;
-
-            writer.write_element_start(#tag)?;
-            writer.write_element_end_open()?;
-
-            writer.write_text(#to_str)?;
-
-            writer.write_element_end_close(#tag)?;
+            writer.write_flatten_text(#tag, #to_str)?;
         }
     }
 }
