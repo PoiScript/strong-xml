@@ -160,10 +160,7 @@ impl<'a> XmlReader<'a> {
                         });
                     }
                 }
-                Ok(Token::ElementEnd { .. })
-                | Ok(Token::Attribute { .. })
-                | Ok(Token::Text { .. })
-                | Ok(Token::Cdata { .. }) => {
+                Ok(Token::ElementEnd { .. }) | Ok(Token::Attribute { .. }) => {
                     return Err(XmlError::UnexpectedToken {
                         token: format!("{:?}", token),
                     })
