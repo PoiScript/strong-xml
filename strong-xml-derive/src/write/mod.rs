@@ -1,6 +1,5 @@
 mod named;
-mod unit;
-mod unname;
+mod newtype;
 
 use crate::types::{Element, Field, Fields};
 
@@ -23,16 +22,14 @@ pub fn impl_write(element: Element) -> TokenStream {
                     });
                     quote!( #ele_name::#name { #( #names ),* } )
                 }
-                Fields::Unname { name, .. } => quote!( #ele_name::#name(__inner) ),
-                Fields::Unit { name, .. } => quote!( #ele_name::#name ),
+                Fields::Newtype { name, .. } => quote!( #ele_name::#name(__inner) ),
             });
 
             let read = variants.iter().map(|variant| match variant {
                 Fields::Named { tag, name, fields } => {
                     named::write(&tag, quote!( #ele_name::#name ), &fields)
                 }
-                Fields::Unname { name, .. } => unname::write(quote!( #ele_name::#name )),
-                Fields::Unit { tag, name } => unit::write(&tag, quote!( #ele_name::#name )),
+                Fields::Newtype { name, .. } => newtype::write(quote!( #ele_name::#name )),
             });
 
             quote! {
@@ -62,8 +59,8 @@ pub fn impl_write(element: Element) -> TokenStream {
                     #read
                 }
             }
-            Fields::Unname { name, .. } => {
-                let read = unname::write(quote!(#name));
+            Fields::Newtype { name, .. } => {
+                let read = newtype::write(quote!(#name));
 
                 quote! {
                     let __inner = &self.0;
@@ -71,7 +68,6 @@ pub fn impl_write(element: Element) -> TokenStream {
                     #read
                 }
             }
-            Fields::Unit { tag, name } => unit::write(&tag, quote!(#name)),
         },
     }
 }

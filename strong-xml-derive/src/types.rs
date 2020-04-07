@@ -28,7 +28,7 @@ pub enum Fields {
         name: Ident,
         fields: Vec<Field>,
     },
-    /// Unnamed fields of a tuple struct or tuple variant
+    /// Newtype struct or newtype variant
     ///
     /// ```ignore
     /// #[xml(tag = "$tags[0]", tag = "$tags[1]")]
@@ -41,25 +41,11 @@ pub enum Fields {
     ///     $name($ty)
     /// }
     /// ```
-    Unname {
+    Newtype {
         tags: Vec<LitStr>,
         name: Ident,
         ty: Type,
     },
-    /// Unit struct or unit variant
-    ///
-    /// ```ignore
-    /// #[xml(tag = "$tag")]
-    /// struct $name;
-    /// ```
-    ///
-    /// ```ignore
-    /// enum Foo {
-    ///     #[xml(tag = "$tag")]
-    ///     $name,
-    /// }
-    /// ```
-    Unit { tag: LitStr, name: Ident },
 }
 
 pub enum Field {
@@ -180,11 +166,12 @@ impl Fields {
         }
 
         match fields {
-            syn::Fields::Unit => Fields::Unit {
+            syn::Fields::Unit => Fields::Named {
                 name,
                 tag: tags.remove(0),
+                fields: Vec::new(),
             },
-            syn::Fields::Unnamed(_) => Fields::Unname {
+            syn::Fields::Unnamed(_) => Fields::Newtype {
                 name,
                 tags,
                 ty: Type::parse(fields.into_iter().next().unwrap().ty),

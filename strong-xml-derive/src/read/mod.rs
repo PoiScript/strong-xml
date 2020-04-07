@@ -1,6 +1,5 @@
 mod named;
-mod unit;
-mod unname;
+mod newtype;
 
 use crate::types::{Element, Fields};
 
@@ -14,16 +13,15 @@ pub fn impl_read(element: Element) -> TokenStream {
             variants,
         } => {
             let tags = variants.iter().map(|variant| match variant {
-                Fields::Unname { tags, .. } => tags.clone(),
-                Fields::Named { tag, .. } | Fields::Unit { tag, .. } => vec![tag.clone()],
+                Fields::Newtype { tags, .. } => tags.clone(),
+                Fields::Named { tag, .. } => vec![tag.clone()],
             });
 
             let read = variants.iter().map(|variant| match variant {
                 Fields::Named { tag, name, fields } => {
                     named::read(&tag, quote!(#ele_name::#name), &fields)
                 }
-                Fields::Unname { name, ty, .. } => unname::read(&ty, quote!(#ele_name::#name)),
-                Fields::Unit { tag, name } => unit::read(&tag, quote!(#ele_name::#name)),
+                Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#ele_name::#name)),
             });
 
             quote! {
@@ -48,8 +46,7 @@ pub fn impl_read(element: Element) -> TokenStream {
 
         Element::Struct { fields, .. } => match fields {
             Fields::Named { tag, name, fields } => named::read(&tag, quote!(#name).into(), &fields),
-            Fields::Unname { name, ty, .. } => unname::read(&ty, quote!(#name).into()),
-            Fields::Unit { tag, name } => unit::read(&tag, quote!(#name).into()),
+            Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#name).into()),
         },
     }
 }
