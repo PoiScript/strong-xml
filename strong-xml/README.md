@@ -5,7 +5,7 @@ Strong typed xml, based on xmlparser.
 ### Quick Start
 
 ```toml
-strong-xml = "0.4.0"
+strong-xml = "0.4.1"
 ```
 
 ```rust
