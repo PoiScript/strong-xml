@@ -6,6 +6,6 @@ edition = "2018"
 publish = false
 
 [dependencies]
-strong-xml = { path = "../strong-xml" }
+strong-xml = { path = "../strong-xml", features = ["log"] }
 log = "0.4.8"
 env_logger = "0.7.1"

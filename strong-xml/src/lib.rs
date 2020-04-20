@@ -252,6 +252,11 @@
 //!
 //! MIT
 
+#[cfg(feature = "log")]
+mod log;
+#[cfg(not(feature = "log"))]
+mod noop_log;
+
 mod xml_error;
 mod xml_escape;
 mod xml_reader;

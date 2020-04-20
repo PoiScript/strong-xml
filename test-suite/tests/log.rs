@@ -13,7 +13,7 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &Record) {
-        write!(
+        writeln!(
             *self.0.lock().unwrap(),
             "{:<5} {}",
             record.level(),
@@ -77,22 +77,30 @@ fn info() -> XmlResult<()> {
     .unwrap();
 
     assert_eq!(
-        "DEBUG [Tag3] Started reading\
-        TRACE [Tag3] Reading attribute field `att1`\
-        INFO  [Tag3] Skip attribute `att2`\
-        TRACE [Tag3] Reading children field `tag2`\
-        DEBUG [Tag2] Started reading\
-        TRACE [Tag2] Reading attribute field `att1`\
-        TRACE [Tag2] Reading attribute field `att2`\
-        DEBUG [Tag2] Finished reading\
-        INFO  [Tag3] Skip element `tag4`\
-        TRACE [Tag3] Reading children field `tag1`\
-        DEBUG [Tag1] Started reading\
-        TRACE [Tag1] Reading text field `content`\
-        DEBUG [Tag1] Finished reading\
-        TRACE [Tag3] Reading flatten_text field `text`\
-        INFO  [Tag3] Skip element `tag5`\
-        DEBUG [Tag3] Finished reading",
+        r#"DEBUG [Tag3] Started reading
+TRACE [Tag3] Started reading field `att1`
+TRACE [Tag3] Finished reading field `att1`
+INFO  [Tag3] Skip attribute `att2`
+TRACE [Tag3] Started reading field `tag2`
+DEBUG [Tag2] Started reading
+TRACE [Tag2] Started reading field `att1`
+TRACE [Tag2] Finished reading field `att1`
+TRACE [Tag2] Started reading field `att2`
+TRACE [Tag2] Finished reading field `att2`
+DEBUG [Tag2] Finished reading
+TRACE [Tag3] Finished reading field `tag2`
+INFO  [Tag3] Skip element `tag4`
+TRACE [Tag3] Started reading field `tag1`
+DEBUG [Tag1] Started reading
+TRACE [Tag1] Started reading field `content`
+TRACE [Tag1] Finished reading field `content`
+DEBUG [Tag1] Finished reading
+TRACE [Tag3] Finished reading field `tag1`
+TRACE [Tag3] Started reading field `text`
+TRACE [Tag3] Finished reading field `text`
+INFO  [Tag3] Skip element `tag5`
+DEBUG [Tag3] Finished reading
+"#,
         buf.lock().unwrap().as_str()
     );
 
