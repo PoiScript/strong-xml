@@ -8,23 +8,16 @@ use syn::{Lifetime, Type};
 // Foo<'bar> => Foo<'_>
 // Foo => Foo
 pub fn elide_type_lifetimes(ty: &mut Type) {
-    match ty {
-        Type::Path(ty) => ty
-            .path
-            .segments
-            .iter_mut()
-            .for_each(|seg| match &mut seg.arguments {
-                PathArguments::AngleBracketed(args) => {
-                    args.args.iter_mut().for_each(|arg| match arg {
-                        GenericArgument::Lifetime(lt) => {
-                            *lt = Lifetime::new("'_", Span::call_site())
-                        }
-                        _ => (),
-                    });
-                }
-                _ => (),
-            }),
-        // TODO: should we take care of other types?
-        _ => (),
+    if let Type::Path(ty) = ty {
+        ty.path.segments.iter_mut().for_each(|seg| {
+            if let PathArguments::AngleBracketed(args) = &mut seg.arguments {
+                args.args.iter_mut().for_each(|arg| {
+                    if let GenericArgument::Lifetime(lt) = arg {
+                        *lt = Lifetime::new("'_", Span::call_site())
+                    }
+                });
+            }
+        })
     }
+    // TODO: should we take care of other types?
 }

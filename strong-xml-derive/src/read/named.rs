@@ -4,7 +4,7 @@ use syn::{Ident, LitStr};
 
 use crate::types::{Field, Type};
 
-pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenStream {
+pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
     let init_fields = fields.iter().map(|field| match field {
         Field::Attribute { name, ty, .. }
         | Field::Child { name, ty, .. }

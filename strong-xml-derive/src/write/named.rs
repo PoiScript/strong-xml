@@ -4,7 +4,7 @@ use syn::{Ident, LitStr};
 
 use crate::types::{Field, Type};
 
-pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenStream {
+pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
     let write_attributes = fields.iter().filter_map(|field| match field {
         Field::Attribute { tag, name, ty, .. } => Some(write_attrs(&tag, &name, &ty, &ele_name)),
         _ => None,

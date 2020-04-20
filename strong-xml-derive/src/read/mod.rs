@@ -42,8 +42,8 @@ pub fn impl_read(element: Element) -> TokenStream {
         }
 
         Element::Struct { fields, .. } => match fields {
-            Fields::Named { tag, name, fields } => named::read(&tag, quote!(#name).into(), &fields),
-            Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#name).into()),
+            Fields::Named { tag, name, fields } => named::read(&tag, quote!(#name), &fields),
+            Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#name)),
         },
     }
 }
