@@ -6,44 +6,72 @@ use crate::types::{Field, Type};
 
 pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
     let init_fields = fields.iter().map(|field| match field {
-        Field::Attribute { name, ty, .. }
-        | Field::Child { name, ty, .. }
-        | Field::FlattenText { name, ty, .. } => init_value(name, ty),
-        Field::Text { name, .. } => quote! { let #name; },
+        Field::Attribute { bind, ty, .. }
+        | Field::Child { bind, ty, .. }
+        | Field::FlattenText { bind, ty, .. } => init_value(bind, ty),
+        Field::Text { bind, .. } => quote! { let #bind; },
     });
 
     let return_fields = fields.iter().map(|field| match field {
         Field::Attribute {
-            name, ty, default, ..
+            name,
+            bind,
+            ty,
+            default,
+            ..
         }
         | Field::Child {
-            name, ty, default, ..
+            name,
+            bind,
+            ty,
+            default,
+            ..
         }
         | Field::FlattenText {
-            name, ty, default, ..
-        } => return_value(name, ty, *default, &ele_name),
-        Field::Text { name, ty } => return_value(name, ty, false, &ele_name),
+            name,
+            bind,
+            ty,
+            default,
+            ..
+        } => return_value(name, bind, ty, *default, &ele_name),
+        Field::Text { name, bind, ty, .. } => return_value(name, bind, ty, false, &ele_name),
     });
 
     let read_attr_fields = fields.iter().filter_map(|field| match field {
-        Field::Attribute { name, ty, tag, .. } => Some(read_attrs(&tag, &name, &ty, &ele_name)),
+        Field::Attribute {
+            bind,
+            ty,
+            tag,
+            name,
+            ..
+        } => Some(read_attrs(&tag, &bind, &name, &ty, &ele_name)),
         _ => None,
     });
 
     let read_child_fields = fields.iter().filter_map(|field| match field {
-        Field::Child { name, ty, tags, .. } => Some(read_children(tags, name, ty, &ele_name)),
+        Field::Child {
+            bind,
+            ty,
+            tags,
+            name,
+            ..
+        } => Some(read_children(tags, bind, name, ty, &ele_name)),
         _ => None,
     });
 
     let read_flatten_text_fields = fields.iter().filter_map(|field| match field {
-        Field::FlattenText { name, ty, tag, .. } => {
-            Some(read_flatten_text(tag, name, ty, &ele_name))
-        }
+        Field::FlattenText {
+            bind,
+            ty,
+            tag,
+            name,
+            ..
+        } => Some(read_flatten_text(tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
     let read_text_fields = fields.iter().filter_map(|field| match field {
-        Field::Text { name, ty } => Some(read_text(&tag, name, ty, &ele_name)),
+        Field::Text { bind, ty, name, .. } => Some(read_text(&tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
@@ -117,14 +145,20 @@ fn init_value(name: &Ident, ty: &Type) -> TokenStream {
     }
 }
 
-fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &TokenStream) -> TokenStream {
+fn return_value(
+    name: &TokenStream,
+    bind: &Ident,
+    ty: &Type,
+    default: bool,
+    ele_name: &TokenStream,
+) -> TokenStream {
     if ty.is_vec() || ty.is_option() {
-        quote! { #name }
+        quote! { #name: #bind }
     } else if default {
-        quote! { #name: #name.unwrap_or_default() }
+        quote! { #name: #bind.unwrap_or_default() }
     } else {
         quote! {
-            #name: #name.ok_or(XmlError::MissingField {
+            #name: #bind.ok_or(XmlError::MissingField {
                 name: stringify!(#ele_name).to_owned(),
                 field: stringify!(#name).to_owned(),
             })?
@@ -132,7 +166,13 @@ fn return_value(name: &Ident, ty: &Type, default: bool, ele_name: &TokenStream) 
     }
 }
 
-fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+fn read_attrs(
+    tag: &LitStr,
+    bind: &Ident,
+    name: &TokenStream,
+    ty: &Type,
+    ele_name: &TokenStream,
+) -> TokenStream {
     let from_str = from_str(ty);
 
     if ty.is_vec() {
@@ -142,7 +182,7 @@ fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> 
             #tag => {
                 strong_xml::log_start_reading_field!(#ele_name, #name);
 
-                #name = Some(#from_str);
+                #bind = Some(#from_str);
 
                 strong_xml::log_finish_reading_field!(#ele_name, #name);
             }
@@ -150,7 +190,13 @@ fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> 
     }
 }
 
-fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+fn read_text(
+    tag: &LitStr,
+    bind: &Ident,
+    name: &TokenStream,
+    ty: &Type,
+    ele_name: &TokenStream,
+) -> TokenStream {
     let from_str = from_str(ty);
 
     if ty.is_vec() {
@@ -160,20 +206,26 @@ fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> T
             strong_xml::log_start_reading_field!(#ele_name, #name);
 
             let __value = reader.read_text(#tag)?;
-            #name = Some(#from_str);
+            #bind = Some(#from_str);
 
             strong_xml::log_finish_reading_field!(#ele_name, #name);
         }
     }
 }
 
-fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+fn read_children(
+    tags: &[LitStr],
+    bind: &Ident,
+    name: &TokenStream,
+    ty: &Type,
+    ele_name: &TokenStream,
+) -> TokenStream {
     let from_reader = match &ty {
         Type::VecT(ty) => quote! {
-            #name.push(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
+            #bind.push(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
         },
         Type::OptionT(ty) | Type::T(ty) => quote! {
-            #name = Some(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
+            #bind = Some(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
         },
         _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
     };
@@ -189,18 +241,24 @@ fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &TokenStrea
     }
 }
 
-fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+fn read_flatten_text(
+    tag: &LitStr,
+    bind: &Ident,
+    name: &TokenStream,
+    ty: &Type,
+    ele_name: &TokenStream,
+) -> TokenStream {
     let from_str = from_str(ty);
 
     let read_text = if ty.is_vec() {
         quote! {
             let __value = reader.read_text(#tag)?;
-            #name.push(#from_str);
+            #bind.push(#from_str);
         }
     } else {
         quote! {
             let __value = reader.read_text(#tag)?;
-            #name = Some(#from_str);
+            #bind = Some(#from_str);
         }
     };
 

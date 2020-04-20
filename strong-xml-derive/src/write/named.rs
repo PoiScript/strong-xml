@@ -6,24 +6,24 @@ use crate::types::{Field, Type};
 
 pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
     let write_attributes = fields.iter().filter_map(|field| match field {
-        Field::Attribute { tag, name, ty, .. } => Some(write_attrs(&tag, &name, &ty, &ele_name)),
+        Field::Attribute { tag, bind, ty, .. } => Some(write_attrs(&tag, &bind, &ty, &ele_name)),
         _ => None,
     });
 
     let write_text = fields.iter().filter_map(|field| match field {
-        Field::Text { name, ty, .. } => Some(write_text(tag, name, ty, &ele_name)),
+        Field::Text { bind, ty, .. } => Some(write_text(tag, bind, ty, &ele_name)),
         _ => None,
     });
 
     let write_flatten_text = fields.iter().filter_map(|field| match field {
-        Field::FlattenText { tag, name, ty, .. } => {
-            Some(write_flatten_text(tag, name, ty, &ele_name))
+        Field::FlattenText { tag, bind, ty, .. } => {
+            Some(write_flatten_text(tag, bind, ty, &ele_name))
         }
         _ => None,
     });
 
     let write_child = fields.iter().filter_map(|field| match field {
-        Field::Child { name, ty, .. } => Some(write_child(name, ty, &ele_name)),
+        Field::Child { bind, ty, .. } => Some(write_child(bind, ty, &ele_name)),
         _ => None,
     });
 
@@ -41,11 +41,11 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
     });
 
     let content_is_empty = fields.iter().filter_map(|field| match field {
-        Field::Child { ty, name, .. } | Field::FlattenText { ty, name, .. } => {
+        Field::Child { ty, bind, .. } | Field::FlattenText { ty, bind, .. } => {
             if ty.is_vec() {
-                Some(quote! { #name.is_empty() })
+                Some(quote! { #bind.is_empty() })
             } else if ty.is_option() {
-                Some(quote! { #name.is_none() })
+                Some(quote! { #bind.is_none() })
             } else {
                 None
             }

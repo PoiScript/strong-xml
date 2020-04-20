@@ -1,3 +1,5 @@
+use proc_macro2::TokenStream;
+use quote::{format_ident, quote};
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;
@@ -60,7 +62,8 @@ pub enum Field {
     /// }
     /// ```
     Attribute {
-        name: Ident,
+        name: TokenStream,
+        bind: Ident,
         ty: Type,
         tag: LitStr,
         default: bool,
@@ -74,7 +77,8 @@ pub enum Field {
     /// }
     /// ```
     Child {
-        name: Ident,
+        name: TokenStream,
+        bind: Ident,
         ty: Type,
         default: bool,
         tags: Vec<LitStr>,
@@ -87,7 +91,11 @@ pub enum Field {
     ///     $name: $ty,
     /// }
     /// ```
-    Text { name: Ident, ty: Type },
+    Text {
+        name: TokenStream,
+        bind: Ident,
+        ty: Type,
+    },
     /// Flatten Text
     ///
     /// ```ignore
@@ -97,7 +105,8 @@ pub enum Field {
     /// }
     /// ```
     FlattenText {
-        name: Ident,
+        name: TokenStream,
+        bind: Ident,
         ty: Type,
         default: bool,
         tag: LitStr,
@@ -173,22 +182,43 @@ impl Fields {
                 tag: tags.remove(0),
                 fields: Vec::new(),
             },
-            syn::Fields::Unnamed(_) => Fields::Newtype {
+            syn::Fields::Unnamed(_) => Fields::Named {
                 name,
-                tags,
-                ty: Type::parse(fields.into_iter().next().unwrap().ty),
+                tag: tags.remove(0),
+                fields: fields
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, field)| {
+                        let index = syn::Index::from(index);
+                        let bind = format_ident!("__self_{}", index);
+                        Field::parse(quote!(#index), bind, field)
+                    })
+                    .collect::<Vec<_>>(),
             },
+            // TODO(newtype)
+            // Fields::Newtype {
+            //     name,
+            //     tags,
+            //     ty: Type::parse(fields.into_iter().next().unwrap().ty),
+            // },
             syn::Fields::Named(_) => Fields::Named {
                 name,
                 tag: tags.remove(0),
-                fields: fields.into_iter().map(Field::parse).collect::<Vec<_>>(),
+                fields: fields
+                    .into_iter()
+                    .map(|field| {
+                        let name = field.ident.clone().unwrap();
+                        let bind = format_ident!("__self_{}", name);
+                        Field::parse(quote!(#name), bind, field)
+                    })
+                    .collect::<Vec<_>>(),
             },
         }
     }
 }
 
 impl Field {
-    pub fn parse(field: syn::Field) -> Field {
+    pub fn parse(name: TokenStream, bind: Ident, field: syn::Field) -> Field {
         let mut default = false;
         let mut attr_tag = None;
         let mut child_tags = Vec::new();
@@ -272,26 +302,30 @@ impl Field {
 
         if let Some(tag) = attr_tag {
             Field::Attribute {
-                name: field.ident.unwrap(),
+                name,
+                bind,
                 ty: Type::parse(field.ty),
                 tag,
                 default,
             }
         } else if !child_tags.is_empty() {
             Field::Child {
-                name: field.ident.unwrap(),
+                name,
+                bind,
                 ty: Type::parse(field.ty),
                 default,
                 tags: child_tags,
             }
         } else if is_text {
             Field::Text {
-                name: field.ident.unwrap(),
+                name,
+                bind,
                 ty: Type::parse(field.ty),
             }
         } else if let Some(tag) = flatten_text_tag {
             Field::FlattenText {
-                name: field.ident.unwrap(),
+                name,
+                bind,
                 ty: Type::parse(field.ty),
                 default,
                 tag,

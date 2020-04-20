@@ -17,7 +17,7 @@ macro_rules! log_finish_reading {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_start_reading_field {
-    ($element:path, $name:ident) => {
+    ($element:path, $name:expr) => {
         log::trace!(concat!(
             "[",
             stringify!($element),
@@ -31,7 +31,7 @@ macro_rules! log_start_reading_field {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_finish_reading_field {
-    ($element:path, $name:ident) => {
+    ($element:path, $name:expr) => {
         log::trace!(concat!(
             "[",
             stringify!($element),
@@ -83,7 +83,7 @@ macro_rules! log_finish_writing {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_start_writing_field {
-    ($element:path, $name:ident) => {
+    ($element:path, $name:expr) => {
         log::trace!(concat!(
             "[",
             stringify!($element),
@@ -97,7 +97,7 @@ macro_rules! log_start_writing_field {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_finish_writing_field {
-    ($element:path, $name:ident) => {
+    ($element:path, $name:expr) => {
         log::trace!(concat!(
             "[",
             stringify!($element),

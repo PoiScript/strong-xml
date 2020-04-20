@@ -16,28 +16,31 @@ struct C;
 #[xml(tag = "d")]
 struct D;
 
-#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-enum AB {
-    #[xml(tag = "a")]
-    A(A),
-    #[xml(tag = "b")]
-    B(B),
-}
+// TODO(newtype):
+// #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+// enum AB {
+//     #[xml(tag = "a")]
+//     A(A),
+//     #[xml(tag = "b")]
+//     B(B),
+// }
 
-#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-enum CD {
-    #[xml(tag = "c")]
-    C(C),
-    #[xml(tag = "d")]
-    D(D),
-}
+// TODO(newtype):
+// #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+// enum CD {
+//     #[xml(tag = "c")]
+//     C(C),
+//     #[xml(tag = "d")]
+//     D(D),
+// }
 
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 enum ABCDEFG {
-    #[xml(tag = "a", tag = "b")]
-    AB(AB),
-    #[xml(tag = "c", tag = "d")]
-    CD(CD),
+    // TODO(newtype):
+    // #[xml(tag = "a", tag = "b")]
+    // AB(AB),
+    // #[xml(tag = "c", tag = "d")]
+    // CD(CD),
     #[xml(tag = "e")]
     E,
     #[xml(tag = "f")]
@@ -61,7 +64,8 @@ fn test() -> XmlResult<()> {
         .format_timestamp(None)
         .try_init();
 
-    assert_eq!((ABCDEFG::AB(AB::A(A))).to_string()?, "<a/>");
+    // TODO(newtype):
+    // assert_eq!((ABCDEFG::AB(AB::A(A))).to_string()?, "<a/>");
 
     assert_eq!(
         (ABCDEFG::G {
@@ -72,7 +76,8 @@ fn test() -> XmlResult<()> {
         r#"<g foo="42"><bar>false</bar></g>"#
     );
 
-    assert_eq!(ABCDEFG::from_str("<d/>")?, ABCDEFG::CD(CD::D(D)));
+    // TODO(newtype):
+    // assert_eq!(ABCDEFG::from_str("<d/>")?, ABCDEFG::CD(CD::D(D)));
 
     assert_eq!(
         ABCDEFG::from_str("<f>foo</f>")?,

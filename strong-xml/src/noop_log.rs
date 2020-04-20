@@ -13,13 +13,13 @@ macro_rules! log_finish_reading {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_start_reading_field {
-    ($element:path, $name:ident) => {};
+    ($element:path, $name:expr) => {};
 }
 
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_finish_reading_field {
-    ($element:path, $name:ident) => {};
+    ($element:path, $name:expr) => {};
 }
 
 #[macro_export]
@@ -49,11 +49,11 @@ macro_rules! log_finish_writing {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_start_writing_field {
-    ($element:path, $name:ident) => {};
+    ($element:path, $name:expr) => {};
 }
 
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_finish_writing_field {
-    ($element:path, $name:ident) => {};
+    ($element:path, $name:expr) => {};
 }
