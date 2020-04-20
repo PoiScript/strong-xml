@@ -1,5 +1,7 @@
 use syn::{Lit::*, Meta::*, *};
 
+use crate::utils::elide_type_lifetimes;
+
 pub enum Element {
     Struct { name: Ident, fields: Fields },
     Enum { name: Ident, variants: Vec<Fields> },
@@ -31,13 +33,13 @@ pub enum Fields {
     /// Newtype struct or newtype variant
     ///
     /// ```ignore
-    /// #[xml(tag = "$tags[0]", tag = "$tags[1]")]
+    /// #[xml($(tag = "$tags",)*)]
     /// struct $name($ty);
     /// ```
     ///
     /// ```ignore
     /// enum Foo {
-    ///     #[xml(tag = "$tags[0]", tag = "$tags[1]")]
+    ///     #[xml($(tag = "$tags",)*)]
     ///     $name($ty)
     /// }
     /// ```
@@ -176,15 +178,11 @@ impl Fields {
                 tags,
                 ty: Type::parse(fields.into_iter().next().unwrap().ty),
             },
-            syn::Fields::Named(_) => {
-                let fields = fields.into_iter().map(Field::parse).collect::<Vec<_>>();
-
-                Fields::Named {
-                    name,
-                    tag: tags.remove(0),
-                    fields,
-                }
-            }
+            syn::Fields::Named(_) => Fields::Named {
+                name,
+                tag: tags.remove(0),
+                fields: fields.into_iter().map(Field::parse).collect::<Vec<_>>(),
+            },
         }
     }
 }
@@ -306,20 +304,14 @@ impl Field {
 
 impl Type {
     pub fn is_option(&self) -> bool {
-        match self {
-            Type::OptionCowStr | Type::OptionT(_) | Type::OptionBool => true,
-            _ => false,
-        }
+        matches!(self, Type::OptionCowStr | Type::OptionT(_) | Type::OptionBool)
     }
 
     pub fn is_vec(&self) -> bool {
-        match self {
-            Type::VecCowStr | Type::VecT(_) | Type::VecBool => true,
-            _ => false,
-        }
+        matches!(self, Type::VecCowStr | Type::VecT(_) | Type::VecBool)
     }
 
-    fn parse(ty: syn::Type) -> Self {
+    fn parse(mut ty: syn::Type) -> Self {
         fn is_vec(ty: &syn::Type) -> Option<&syn::Type> {
             let path = match ty {
                 syn::Type::Path(ty) => &ty.path,
@@ -386,6 +378,8 @@ impl Type {
         fn is_bool(ty: &syn::Type) -> bool {
             matches!(ty, syn::Type::Path(ty) if ty.path.is_ident("bool"))
         }
+
+        elide_type_lifetimes(&mut ty);
 
         if let Some(ty) = is_vec(&ty) {
             if is_cow_str(&ty) {

@@ -56,9 +56,7 @@ pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenSt
             #( #return_fields, )*
         };
 
-        log::debug!(
-            concat!("[", stringify!(#ele_name), "] Finished reading")
-        );
+        strong_xml::log_finish_reading!(#ele_name);
 
         return Ok(__res);
     };
@@ -79,10 +77,7 @@ pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenSt
                     #( #read_child_fields, )*
                     #( #read_flatten_text_fields, )*
                     tag => {
-                        log::info!(
-                            concat!("[", stringify!(#ele_name), "] Skip element `{}`"),
-                            tag
-                        );
+                        strong_xml::log_skip_element!(#ele_name, tag);
                         // skip the start tag
                         reader.next();
                         reader.read_to_end(tag)?;
@@ -95,7 +90,7 @@ pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenSt
     };
 
     quote! {
-        log::debug!(concat!("[", stringify!(#ele_name), "] Started reading"));
+        strong_xml::log_start_reading!(#ele_name);
 
         #( #init_fields )*
 
@@ -104,10 +99,9 @@ pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &Vec<Field>) -> TokenSt
         while let Some((__key, __value)) = reader.find_attribute()? {
             match __key {
                 #( #read_attr_fields, )*
-                key => log::info!(
-                    concat!("[", stringify!(#ele_name), "] Skip attribute `{}`"),
-                    key
-                ),
+                key => {
+                    strong_xml::log_skip_attribute!(#ele_name, key);
+                },
             }
         }
 
@@ -146,11 +140,11 @@ fn read_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> 
     } else {
         quote! {
             #tag => {
-                log::trace!(
-                    concat!("[", stringify!(#ele_name), "] Reading attribute field `", stringify!(#name), "`")
-                );
+                strong_xml::log_start_reading_field!(#ele_name, #name);
 
                 #name = Some(#from_str);
+
+                strong_xml::log_finish_reading_field!(#ele_name, #name);
             }
         }
     }
@@ -163,99 +157,63 @@ fn read_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> T
         panic!("`text` attribute doesn't support Vec.");
     } else {
         quote! {
-            log::trace!(
-                concat!("[", stringify!(#ele_name), "] Reading text field `", stringify!(#name), "`")
-            );
+            strong_xml::log_start_reading_field!(#ele_name, #name);
 
             let __value = reader.read_text(#tag)?;
             #name = Some(#from_str);
+
+            strong_xml::log_finish_reading_field!(#ele_name, #name);
         }
     }
 }
 
 fn read_children(tags: &[LitStr], name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
-    let tags = tags.iter();
-
-    match &ty {
-        Type::VecT(ty) => {
-            if let Some(ident) = trim_lifetime(ty) {
-                quote! {
-                    #( #tags )|* => {
-                        log::trace!(
-                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
-                        );
-
-                        #name.push(#ident::from_reader(reader)?)
-                    }
-                }
-            } else {
-                quote! {
-                    #( #tags )|* => {
-                        log::trace!(
-                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
-                        );
-
-                        #name.push(#ty::from_reader(reader)?);
-                    }
-                }
-            }
-        }
-        Type::OptionT(ty) | Type::T(ty) => {
-            if let Some(ident) = trim_lifetime(ty) {
-                quote! {
-                    #( #tags )|* => {
-                        log::trace!(
-                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
-                        );
-
-                        #name = Some(#ident::from_reader(reader)?);
-                    }
-                }
-            } else {
-                quote! {
-                    #( #tags )|* => {
-                        log::trace!(
-                            concat!("[", stringify!(#ele_name), "] Reading children field `", stringify!(#name), "`")
-                        );
-                        #name = Some(#ty::from_reader(reader)?);
-                    }
-                }
-            }
-        }
+    let from_reader = match &ty {
+        Type::VecT(ty) => quote! {
+            #name.push(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
+        },
+        Type::OptionT(ty) | Type::T(ty) => quote! {
+            #name = Some(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
+        },
         _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
+    };
+
+    quote! {
+        #( #tags )|* => {
+            strong_xml::log_start_reading_field!(#ele_name, #name);
+
+            #from_reader
+
+            strong_xml::log_finish_reading_field!(#ele_name, #name);
+        }
     }
 }
 
 fn read_flatten_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let from_str = from_str(ty);
 
-    if ty.is_vec() {
+    let read_text = if ty.is_vec() {
         quote! {
-            #tag => {
-                // skip element start
-                reader.next();
-
-                log::trace!(
-                    concat!("[", stringify!(#ele_name), "] Reading flatten_text field `", stringify!(#name), "`")
-                );
-
-                let __value = reader.read_text(#tag)?;
-                #name.push(#from_str);
-            }
+            let __value = reader.read_text(#tag)?;
+            #name.push(#from_str);
         }
     } else {
         quote! {
-            #tag => {
-                // skip element start
-                reader.next();
+            let __value = reader.read_text(#tag)?;
+            #name = Some(#from_str);
+        }
+    };
 
-                log::trace!(
-                    concat!("[", stringify!(#ele_name), "] Reading flatten_text field `", stringify!(#name), "`")
-                );
+    quote! {
+        #tag => {
+            // skip element start
+            reader.next();
 
-                let __value = reader.read_text(#tag)?;
-                #name = Some(#from_str);
-            }
+            strong_xml::log_start_reading_field!(#ele_name, #name);
+
+            #read_text
+
+            strong_xml::log_finish_reading_field!(#ele_name, #name);
         }
     }
 }
@@ -270,21 +228,8 @@ fn from_str(ty: &Type) -> TokenStream {
                 _ => <bool as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))?
             }
         },
-        Type::T(ty) | Type::OptionT(ty) | Type::VecT(ty) => {
-            if let Some(ty) = trim_lifetime(ty) {
-                quote! { <#ty as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))? }
-            } else {
-                quote! { <#ty as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))? }
-            }
-        }
+        Type::T(ty) | Type::OptionT(ty) | Type::VecT(ty) => quote! {
+            <#ty as std::str::FromStr>::from_str(&__value).map_err(|e| XmlError::FromStr(e.into()))?
+        },
     }
-}
-
-fn trim_lifetime(ty: &syn::Type) -> Option<&Ident> {
-    let path = match ty {
-        syn::Type::Path(ty) => &ty.path,
-        _ => return None,
-    };
-    let seg = path.segments.last()?;
-    Some(&seg.ident)
 }

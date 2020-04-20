@@ -3,10 +3,10 @@ use quote::quote;
 
 pub fn write(name: TokenStream) -> TokenStream {
     quote! {
-        log::debug!(concat!("[", stringify!(#name), "] Started writing."));
+        strong_xml::log_start_writing!(#name);
 
         __inner.to_writer(writer)?;
 
-        log::debug!(concat!("[", stringify!(#name), "] Finished writing."));
+        strong_xml::log_finish_writing!(#name);
     }
 }
