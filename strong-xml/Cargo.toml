@@ -1,6 +1,6 @@
 [package]
 name = "strong-xml"
-version = "0.5.0"
+version = "0.6.0-alpha"
 repository = "https://github.com/PoiScript/strong-xml"
 description = "Strong typed xml, based on xmlparser."
 license = "MIT"
@@ -14,7 +14,7 @@ jetscii = "0.4.4"
 lazy_static = "1.4.0"
 log = { version = "0.4.8", optional = true }
 memchr = "2.3.3"
-strong-xml-derive = { version = "0.5.0", path = "../strong-xml-derive" }
+strong-xml-derive = { version = "0.6.0-alpha", path = "../strong-xml-derive" }
 xmlparser = "0.13.1"
 
 [dev-dependencies]
