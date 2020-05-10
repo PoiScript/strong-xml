@@ -266,7 +266,7 @@ mod xml_write;
 mod xml_writer;
 
 pub use self::xml_error::{XmlError, XmlResult};
-pub use self::xml_read::XmlRead;
+pub use self::xml_read::{XmlRead, XmlReadOwned};
 pub use self::xml_reader::XmlReader;
 pub use self::xml_write::XmlWrite;
 pub use self::xml_writer::XmlWriter;

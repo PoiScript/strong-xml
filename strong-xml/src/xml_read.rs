@@ -8,3 +8,7 @@ pub trait XmlRead<'a>: Sized {
         Self::from_reader(&mut reader)
     }
 }
+
+pub trait XmlReadOwned: for<'s> XmlRead<'s> {}
+
+impl<T> XmlReadOwned for T where T: for<'s> XmlRead<'s> {}
