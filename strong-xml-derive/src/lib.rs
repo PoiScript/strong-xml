@@ -19,15 +19,22 @@ pub fn derive_xml_read(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let generics = &input.generics;
 
+    let params = &generics.params;
+
+    let where_clause = &generics.where_clause;
+
     let input_lifetime = utils::gen_input_lifetime(&generics);
 
-    let mut generics_with_lifetime = generics.clone();
-    generics_with_lifetime.params.push(input_lifetime.into());
+    let mut params_with_input_lifetime = generics.params.clone();
+
+    params_with_input_lifetime.insert(0, input_lifetime.into());
 
     let impl_read = read::impl_read(Element::parse(input.clone()));
 
     let gen = quote! {
-        impl #generics_with_lifetime strong_xml::XmlRead<'__input> for #name #generics {
+        impl <#params_with_input_lifetime> strong_xml::XmlRead<'__input> for #name <#params>
+            #where_clause
+        {
             fn from_reader(
                 mut reader: &mut strong_xml::XmlReader<'__input>
             ) -> strong_xml::XmlResult<Self> {
@@ -48,10 +55,16 @@ pub fn derive_xml_write(input: TokenStream) -> TokenStream {
     let name = &input.ident;
     let generics = &input.generics;
 
+    let params = &generics.params;
+
+    let where_clause = &generics.where_clause;
+
     let impl_write = write::impl_write(Element::parse(input.clone()));
 
     let gen = quote! {
-        impl #generics strong_xml::XmlWrite for #name #generics {
+        impl <#params> strong_xml::XmlWrite for #name <#params>
+            #where_clause
+        {
             fn to_writer<W: std::io::Write>(
                 &self,
                 mut writer: &mut strong_xml::XmlWriter<W>
