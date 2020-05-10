@@ -1,3 +1,7 @@
+# deprecated
+
+`xmlparser-dervie` has been renamed to `strong-xml` since v0.1.2.
+
 # xmlparser-derive
 
 A proc macro to generate functions for writing to
