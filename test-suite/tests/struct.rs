@@ -32,10 +32,9 @@ struct Tag3<'a> {
     text: Option<Cow<'a, str>>,
 }
 
-// TODO(newtype):
-// #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-// #[xml(tag = "tag3")]
-// struct Tag4<'a>(Tag3<'a>);
+#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+#[xml(tag = "tag3")]
+struct Tag4<'a>(Tag3<'a>);
 
 #[test]
 fn test() -> XmlResult<()> {
@@ -78,19 +77,18 @@ fn test() -> XmlResult<()> {
         r#"<tag3 att1="att1"><tag1 att1="att11">content1</tag1><tag1 att1="att12">content2</tag1></tag3>"#
     );
 
-    // TODO(newtype):
-    // assert_eq!(
-    //     Tag4::from_str(r#"<tag3 att1="att1"><tag2 att1="att1" att2="att2"></tag2></tag3>"#)?,
-    //     Tag4(Tag3 {
-    //         att1: "att1".into(),
-    //         tag1: vec![],
-    //         tag2: Some(Tag2 {
-    //             att1: "att1".into(),
-    //             att2: "att2".into(),
-    //         }),
-    //         text: None,
-    //     })
-    // );
+    assert_eq!(
+        Tag4::from_str(r#"<tag3 att1="att1"><tag2 att1="att1" att2="att2"></tag2></tag3>"#)?,
+        Tag4(Tag3 {
+            att1: "att1".into(),
+            tag1: vec![],
+            tag2: Some(Tag2 {
+                att1: "att1".into(),
+                att2: "att2".into(),
+            }),
+            text: None,
+        })
+    );
 
     Ok(())
 }

@@ -182,25 +182,35 @@ impl Fields {
                 tag: tags.remove(0),
                 fields: Vec::new(),
             },
-            syn::Fields::Unnamed(_) => Fields::Named {
-                name,
-                tag: tags.remove(0),
-                fields: fields
-                    .into_iter()
-                    .enumerate()
-                    .map(|(index, field)| {
-                        let index = syn::Index::from(index);
-                        let bind = format_ident!("__self_{}", index);
-                        Field::parse(quote!(#index), bind, field)
-                    })
-                    .collect::<Vec<_>>(),
-            },
-            // TODO(newtype)
-            // Fields::Newtype {
-            //     name,
-            //     tags,
-            //     ty: Type::parse(fields.into_iter().next().unwrap().ty),
-            // },
+            syn::Fields::Unnamed(fields) => {
+                // we will assume it's a newtype stuct/enum
+                // if it has only one field and no field attribute
+                if fields.unnamed.len() == 1 {
+                    let field = fields.unnamed.first().unwrap().clone();
+                    if field.attrs.into_iter().filter_map(get_xml_meta).count() == 0 {
+                        return Fields::Newtype {
+                            name,
+                            tags,
+                            ty: Type::parse(field.ty),
+                        };
+                    }
+                }
+
+                Fields::Named {
+                    name,
+                    tag: tags.remove(0),
+                    fields: fields
+                        .unnamed
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, field)| {
+                            let index = syn::Index::from(index);
+                            let bind = format_ident!("__self_{}", index);
+                            Field::parse(quote!(#index), bind, field)
+                        })
+                        .collect::<Vec<_>>(),
+                }
+            }
             syn::Fields::Named(_) => Fields::Named {
                 name,
                 tag: tags.remove(0),
