@@ -9,7 +9,7 @@ Strong typed xml, based on xmlparser.
 ### Quick Start
 
 ```toml
-strong-xml = "0.4.1"
+strong-xml = "0.6.0"
 ```
 
 ```rust

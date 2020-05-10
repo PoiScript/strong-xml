@@ -1,9 +1,13 @@
 //! Strong typed xml, based on xmlparser.
 //!
+//! [![Build Status](https://github.com/PoiScript/strong-xml/workflows/Test/badge.svg)](https://github.com/PoiScript/strong-xml/actions?query=workflow%3ATest)
+//! [![Crates.io](https://img.shields.io/crates/v/strong-xml.svg)](https://crates.io/crates/strong-xml)
+//! [![Document](https://docs.rs/strong-xml/badge.svg)](https://docs.rs/strong-xml)
+//!
 //! ## Quick Start
 //!
 //! ```toml
-//! strong-xml = "0.4.1"
+//! strong-xml = "0.6.0"
 //! ```
 //!
 //! ```rust
