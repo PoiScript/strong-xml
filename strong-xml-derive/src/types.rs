@@ -286,8 +286,6 @@ impl Field {
                         panic!("`text` attribute and `attr` attribute is disjoint.");
                     } else if !child_tags.is_empty() {
                         panic!("`text` attribute and `child` attribute is disjoint.");
-                    } else if flatten_text_tag.is_some() {
-                        panic!("`text` attribute and `flatten_text` attribute is disjoint.");
                     } else {
                         is_cdata = true;
                     }

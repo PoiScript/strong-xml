@@ -226,6 +226,62 @@ assert_eq!(
 );
 ```
 
+#### `#[xml(text, cdata)]`
+
+Specifies that a struct field is text content.
+Support `Cow<str>`, `Vec<Cow<str>>`, `Option<Cow<str>>`,
+`T`, `Vec<T>`, `Option<T>` where `T: FromStr + Display`.
+
+```rust
+use std::borrow::Cow;
+use strong_xml::{XmlRead, XmlWrite};
+
+#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+#[xml(tag = "parent")]
+struct Parent<'a> {
+    #[xml(text, cdata)]
+    content: Cow<'a, str>,
+}
+
+assert_eq!(
+    (Parent { content: "content".into() }).to_string().unwrap(),
+    r#"<parent><![CDATA[content]]></parent>"#
+);
+
+assert_eq!(
+    Parent::from_str(r#"<parent></parent>"#).unwrap(),
+    Parent { content: "<![CDATA[]]>".into() }
+);
+```
+
+#### `#[xml(flatten_text = "", cdata)]`
+
+Specifies that a struct field is child text element.
+Support `Cow<str>`, `Vec<Cow<str>>`, `Option<Cow<str>>`,
+`T`, `Vec<T>`, `Option<T>` where `T: FromStr + Display`.
+
+```rust
+use std::borrow::Cow;
+use strong_xml::{XmlRead, XmlWrite};
+
+#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+#[xml(tag = "parent")]
+struct Parent<'a> {
+    #[xml(flatten_text = "child", cdata)]
+    content: Cow<'a, str>,
+}
+
+assert_eq!(
+    (Parent { content: "content".into() }).to_string().unwrap(),
+    r#"<parent><child><![CDATA[content]]></child></parent>"#
+);
+
+assert_eq!(
+    Parent::from_str(r#"<parent><child><![CDATA[]]></child></parent>"#).unwrap(),
+    Parent { content: "".into() }
+);
+```
+
 #### `#[xml(default)]`
 
 Use `Default::default()` if the value is not present when reading.
