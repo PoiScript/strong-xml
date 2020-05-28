@@ -11,14 +11,20 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
     });
 
     let write_text = fields.iter().filter_map(|field| match field {
-        Field::Text { bind, ty, .. } => Some(write_text(tag, bind, ty, &ele_name)),
+        Field::Text {
+            bind, ty, is_cdata, ..
+        } => Some(write_text(tag, bind, ty, &ele_name, *is_cdata)),
         _ => None,
     });
 
     let write_flatten_text = fields.iter().filter_map(|field| match field {
-        Field::FlattenText { tag, bind, ty, .. } => {
-            Some(write_flatten_text(tag, bind, ty, &ele_name))
-        }
+        Field::FlattenText {
+            tag,
+            bind,
+            ty,
+            is_cdata,
+            ..
+        } => Some(write_flatten_text(tag, bind, ty, &ele_name, *is_cdata)),
         _ => None,
     });
 
@@ -141,7 +147,13 @@ fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     }
 }
 
-fn write_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+fn write_text(
+    tag: &LitStr,
+    name: &Ident,
+    ty: &Type,
+    ele_name: &TokenStream,
+    is_cdata: bool,
+) -> TokenStream {
     let to_str = to_str(ty);
 
     quote! {
@@ -151,7 +163,7 @@ fn write_text(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> 
 
         let __value = &#name;
 
-        writer.write_text(#to_str)?;
+        writer.write_text(#to_str, #is_cdata)?;
 
         strong_xml::log_finish_writing_field!(#ele_name, #name);
 
@@ -164,6 +176,7 @@ fn write_flatten_text(
     name: &Ident,
     ty: &Type,
     ele_name: &TokenStream,
+    is_cdata: bool,
 ) -> TokenStream {
     let to_str = to_str(ty);
 
@@ -172,7 +185,7 @@ fn write_flatten_text(
             strong_xml::log_finish_writing_field!(#ele_name, #name);
 
             for __value in #name {
-                writer.write_flatten_text(#tag, #to_str)?;
+                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
             }
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
@@ -182,7 +195,7 @@ fn write_flatten_text(
             strong_xml::log_finish_writing_field!(#ele_name, #name);
 
             if let Some(__value) = #name {
-                writer.write_flatten_text(#tag, #to_str)?;
+                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
             }
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
@@ -192,7 +205,7 @@ fn write_flatten_text(
             strong_xml::log_finish_writing_field!(#ele_name, #name);
 
             let __value = &#name;
-            writer.write_flatten_text(#tag, #to_str)?;
+            writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         }

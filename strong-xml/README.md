@@ -226,6 +226,54 @@ assert_eq!(
 );
 ```
 
+#### `#[xml(cdata)]`
+
+Specifies a CDATA text. Should be used together with `text` or `flatten_text`.
+
+```rust
+use std::borrow::Cow;
+use strong_xml::{XmlRead, XmlWrite};
+
+#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+#[xml(tag = "parent")]
+struct Parent<'a> {
+    #[xml(text, cdata)]
+    content: Cow<'a, str>,
+}
+
+assert_eq!(
+    (Parent { content: "<escaped />".into() }).to_string().unwrap(),
+    r#"<parent><![CDATA[<escaped />]]></parent>"#
+);
+
+assert_eq!(
+    Parent::from_str("<parent></parent>").unwrap(),
+    Parent { content: "".into() }
+);
+```
+
+```rust
+use std::borrow::Cow;
+use strong_xml::{XmlRead, XmlWrite};
+
+#[derive(XmlWrite, XmlRead, PartialEq, Debug)]
+#[xml(tag = "parent")]
+struct Parent<'a> {
+    #[xml(flatten_text = "code", cdata)]
+    content: Cow<'a, str>,
+}
+
+assert_eq!(
+    Parent::from_str("<parent><code><![CDATA[<escaped />]]></code></parent>").unwrap(),
+    Parent { content: "<escaped />".into() }
+);
+
+assert_eq!(
+    (Parent { content: r#"hello("deities!");"#.into() }).to_string().unwrap(),
+    r#"<parent><code><![CDATA[hello("deities!");]]></code></parent>"#
+);
+```
+
 #### `#[xml(default)]`
 
 Use `Default::default()` if the value is not present when reading.
@@ -255,3 +303,5 @@ assert_eq!(
 ### License
 
 MIT
+
+License: MIT

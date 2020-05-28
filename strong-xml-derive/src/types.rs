@@ -95,6 +95,7 @@ pub enum Field {
         name: TokenStream,
         bind: Ident,
         ty: Type,
+        is_cdata: bool,
     },
     /// Flatten Text
     ///
@@ -110,6 +111,7 @@ pub enum Field {
         ty: Type,
         default: bool,
         tag: LitStr,
+        is_cdata: bool,
     },
 }
 
@@ -234,6 +236,7 @@ impl Field {
         let mut child_tags = Vec::new();
         let mut is_text = false;
         let mut flatten_text_tag = None;
+        let mut is_cdata = false;
 
         for meta in field.attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
@@ -250,6 +253,8 @@ impl Field {
                             panic!("Duplicate `attr` attribute.");
                         } else if is_text {
                             panic!("`attr` attribute and `text` attribute is disjoint.");
+                        } else if is_cdata {
+                            panic!("`attr` attribute and `cdata` attribute is disjoint.")
                         } else if !child_tags.is_empty() {
                             panic!("`attr` attribute and `child` attribute is disjoint.");
                         } else if flatten_text_tag.is_some() {
@@ -274,12 +279,25 @@ impl Field {
                         is_text = true;
                     }
                 }
+                NestedMeta::Meta(Path(ref p)) if p.is_ident("cdata") => {
+                    if is_cdata {
+                        panic!("Duplicate `cdata` attribute.");
+                    } else if attr_tag.is_some() {
+                        panic!("`text` attribute and `attr` attribute is disjoint.");
+                    } else if !child_tags.is_empty() {
+                        panic!("`text` attribute and `child` attribute is disjoint.");
+                    } else {
+                        is_cdata = true;
+                    }
+                }
                 NestedMeta::Meta(NameValue(m)) if m.path.is_ident("child") => {
                     if let Str(lit) = m.lit {
                         if is_text {
                             panic!("`child` attribute and `text` attribute is disjoint.");
                         } else if attr_tag.is_some() {
                             panic!("`child` attribute and `attr` attribute is disjoint.");
+                        } else if is_cdata {
+                            panic!("`child` attribute and `cdata` attribute is disjoint.")
                         } else if flatten_text_tag.is_some() {
                             panic!("`child` attribute and `flatten_text` attribute is disjoint.");
                         } else {
@@ -331,6 +349,7 @@ impl Field {
                 name,
                 bind,
                 ty: Type::parse(field.ty),
+                is_cdata,
             }
         } else if let Some(tag) = flatten_text_tag {
             Field::FlattenText {
@@ -339,6 +358,7 @@ impl Field {
                 ty: Type::parse(field.ty),
                 default,
                 tag,
+                is_cdata,
             }
         } else {
             panic!("Field should have one of `attr`, `child`, `text` or `flatten_text` attribute.");
