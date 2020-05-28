@@ -27,7 +27,7 @@ impl<W: Write> XmlWriter<W> {
     pub fn write_text(&mut self, content: &str, is_cdata: bool) -> Result<()> {
         match is_cdata {
             false => write!(self.inner, "{}", xml_escape(content)),
-            true => write!(self.inner, "<![CDATA[{}]]>", xml_escape(content)),
+            true => write!(self.inner, "<![CDATA[{}]]>", content),
         }
     }
 

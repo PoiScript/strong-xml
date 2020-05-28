@@ -267,17 +267,25 @@ use strong_xml::{XmlRead, XmlWrite};
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 #[xml(tag = "parent")]
 struct Parent<'a> {
-    #[xml(flatten_text = "child", cdata)]
+    #[xml(flatten_text = "code", cdata)]
     content: Cow<'a, str>,
 }
 
 assert_eq!(
-    (Parent { content: "content".into() }).to_string().unwrap(),
-    r#"<parent><child><![CDATA[content]]></child></parent>"#
+    (Parent { content: r#"
+    fn main() -> {
+        hello("deities!");
+    }
+    "#.into() }).to_string().unwrap(),
+    r#"<parent><code><![CDATA[
+    fn main() -> {
+        hello("deities!");
+    }
+    ]]></code></parent>"#
 );
 
 assert_eq!(
-    Parent::from_str(r#"<parent><child><![CDATA[]]></child></parent>"#).unwrap(),
+    Parent::from_str(r#"<parent><code><![CDATA[]]></code></parent>"#).unwrap(),
     Parent { content: "".into() }
 );
 ```
