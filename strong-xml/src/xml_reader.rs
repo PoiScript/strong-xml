@@ -36,7 +36,7 @@ impl<'a> XmlReader<'a> {
     }
 
     #[inline]
-    pub fn read_text(&mut self, end_tag: &str) -> XmlResult<Cow<'a, str>> {
+    pub fn read_text(&mut self, end_tag: &str, is_cdata: bool) -> XmlResult<Cow<'a, str>> {
         let mut res = None;
 
         while let Some(token) = self.next() {
@@ -46,7 +46,10 @@ impl<'a> XmlReader<'a> {
                     ..
                 }
                 | Token::Attribute { .. } => (),
-                Token::Text { text } => {
+                Token::Text { text } if !is_cdata => {
+                    res = Some(xml_unescape(text.as_str())?);
+                }
+                Token::Cdata { text, .. } if is_cdata => {
                     res = Some(xml_unescape(text.as_str())?);
                 }
                 Token::ElementEnd {
@@ -255,19 +258,42 @@ fn read_text() -> XmlResult<()> {
     let mut reader = XmlReader::new("<parent></parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent")?, "");
+    assert_eq!(reader.read_text("parent", false)?, "");
     assert!(reader.next().is_none());
 
     reader = XmlReader::new("<parent>text</parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent")?, "text");
+    assert_eq!(reader.read_text("parent", false)?, "text");
     assert!(reader.next().is_none());
 
     reader = XmlReader::new("<parent attr=\"value\">text</parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent")?, "text");
+    assert_eq!(reader.read_text("parent", false)?, "text");
+    assert!(reader.next().is_none());
+
+    Ok(())
+}
+
+#[test]
+fn read_cdata_text() -> XmlResult<()> {
+    let mut reader = XmlReader::new("<parent><![CDATA[]]></parent>");
+
+    assert!(reader.next().is_some()); // "<parent"
+    assert_eq!(reader.read_text("parent", true)?, "");
+    assert!(reader.next().is_none());
+
+    reader = XmlReader::new("<parent><![CDATA[text]]></parent>");
+
+    assert!(reader.next().is_some()); // "<parent"
+    assert_eq!(reader.read_text("parent", true)?, "text");
+    assert!(reader.next().is_none());
+
+    reader = XmlReader::new("<parent attr=\"value\"><![CDATA[text]]></parent>");
+
+    assert!(reader.next().is_some()); // "<parent"
+    assert_eq!(reader.read_text("parent", true)?, "text");
     assert!(reader.next().is_none());
 
     Ok(())
