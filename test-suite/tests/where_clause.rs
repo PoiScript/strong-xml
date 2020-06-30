@@ -12,7 +12,7 @@ where
     U: Display + FromStr,
     // This bounds is required because we need to wrap
     // the error with a `Box<dyn Error>`
-    <U as FromStr>::Err: 'static + Error,
+    <U as FromStr>::Err: 'static + Error + Send + Sync,
 {
     #[xml(attr = "attr")]
     attr: U,
