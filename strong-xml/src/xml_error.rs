@@ -12,7 +12,7 @@ pub enum XmlError {
     MissingField { name: String, field: String },
     UnterminatedEntity { entity: String },
     UnrecognizedSymbol { symbol: String },
-    FromStr(Box<dyn Error>),
+    FromStr(Box<dyn Error + Send + Sync>),
 }
 
 impl From<IOError> for XmlError {
@@ -41,3 +41,40 @@ impl From<ParserError> for XmlError {
 
 /// Specialized `Result` which the error value is `Error`.
 pub type XmlResult<T> = Result<T, XmlError>;
+
+impl Error for XmlError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use XmlError::*;
+        match self {
+            IO(e) => Some(e),
+            Parser(e) => Some(e),
+            Utf8(e) => Some(e),
+            FromStr(e) => Some(e.as_ref()),
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for XmlError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use XmlError::*;
+        match self {
+            IO(e) => write!(f, "I/O error: {}", e),
+            Parser(e) => write!(f, "XML parser error: {}", e),
+            Utf8(e) => write!(f, "invalid UTF-8: {}", e),
+            UnexpectedEof => f.write_str("unexpected end of file"),
+            UnexpectedToken { token } => write!(f, "unexpected token in XML: {:?}", token),
+            TagMismatch { expected, found } => write!(
+                f,
+                "mismatched XML tag; expected {:?}, found {:?}",
+                expected, found
+            ),
+            MissingField { name, field } => {
+                write!(f, "missing field in XML of {:?}: {:?}", name, field)
+            }
+            UnterminatedEntity { entity } => write!(f, "unterminated XML entity: {}", entity),
+            UnrecognizedSymbol { symbol } => write!(f, "unrecognized XML symbol: {}", symbol),
+            FromStr(e) => write!(f, "error parsing XML value: {}", e),
+        }
+    }
+}

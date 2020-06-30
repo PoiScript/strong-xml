@@ -368,7 +368,10 @@ impl Field {
 
 impl Type {
     pub fn is_option(&self) -> bool {
-        matches!(self, Type::OptionCowStr | Type::OptionT(_) | Type::OptionBool)
+        matches!(
+            self,
+            Type::OptionCowStr | Type::OptionT(_) | Type::OptionBool
+        )
     }
 
     pub fn is_vec(&self) -> bool {
