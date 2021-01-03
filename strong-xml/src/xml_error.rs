@@ -42,7 +42,18 @@ impl From<ParserError> for XmlError {
 /// Specialized `Result` which the error value is `Error`.
 pub type XmlResult<T> = Result<T, XmlError>;
 
-impl Error for XmlError {}
+impl Error for XmlError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use XmlError::*;
+        match self {
+            IO(e) => Some(e),
+            Parser(e) => Some(e),
+            Utf8(e) => Some(e),
+            FromStr(e) => Some(e.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 impl std::fmt::Display for XmlError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
