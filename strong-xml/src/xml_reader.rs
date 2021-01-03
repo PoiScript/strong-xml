@@ -36,7 +36,7 @@ impl<'a> XmlReader<'a> {
     }
 
     #[inline]
-    pub fn read_text(&mut self, end_tag: &str, is_cdata: bool) -> XmlResult<Cow<'a, str>> {
+    pub fn read_text(&mut self, end_tag: &str) -> XmlResult<Cow<'a, str>> {
         let mut res = None;
 
         while let Some(token) = self.next() {
@@ -46,10 +46,7 @@ impl<'a> XmlReader<'a> {
                     ..
                 }
                 | Token::Attribute { .. } => (),
-                Token::Text { text } if !is_cdata => {
-                    res = Some(xml_unescape(text.as_str())?);
-                }
-                Token::Cdata { text, .. } if is_cdata => {
+                Token::Text { text } | Token::Cdata { text, .. } => {
                     res = Some(xml_unescape(text.as_str())?);
                 }
                 Token::ElementEnd {
