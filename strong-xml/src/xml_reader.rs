@@ -258,19 +258,24 @@ fn read_text() -> XmlResult<()> {
     let mut reader = XmlReader::new("<parent></parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent", false)?, "");
+    assert_eq!(reader.read_text("parent")?, "");
     assert!(reader.next().is_none());
 
     reader = XmlReader::new("<parent>text</parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent", false)?, "text");
+    assert_eq!(reader.read_text("parent")?, "text");
     assert!(reader.next().is_none());
 
     reader = XmlReader::new("<parent attr=\"value\">text</parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent", false)?, "text");
+    assert_eq!(reader.read_text("parent")?, "text");
+    assert!(reader.next().is_none());
+
+    reader = XmlReader::new("<parent attr=\"value\">this &amp; that</parent>");
+    assert!(reader.next().is_some());
+    assert_eq!(reader.read_text("parent")?, "this & that");
     assert!(reader.next().is_none());
 
     Ok(())
@@ -281,19 +286,24 @@ fn read_cdata_text() -> XmlResult<()> {
     let mut reader = XmlReader::new("<parent><![CDATA[]]></parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent", true)?, "");
+    assert_eq!(reader.read_text("parent")?, "");
     assert!(reader.next().is_none());
 
     reader = XmlReader::new("<parent><![CDATA[text]]></parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent", true)?, "text");
+    assert_eq!(reader.read_text("parent")?, "text");
     assert!(reader.next().is_none());
 
     reader = XmlReader::new("<parent attr=\"value\"><![CDATA[text]]></parent>");
 
     assert!(reader.next().is_some()); // "<parent"
-    assert_eq!(reader.read_text("parent", true)?, "text");
+    assert_eq!(reader.read_text("parent")?, "text");
+    assert!(reader.next().is_none());
+
+    reader = XmlReader::new("<parent attr=\"value\"><![CDATA[this &amp; <that/>]]></parent>");
+    assert!(reader.next().is_some());
+    assert_eq!(reader.read_text("parent")?, "this &amp; <that/>");
     assert!(reader.next().is_none());
 
     Ok(())
