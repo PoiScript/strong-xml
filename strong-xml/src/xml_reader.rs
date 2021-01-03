@@ -46,8 +46,11 @@ impl<'a> XmlReader<'a> {
                     ..
                 }
                 | Token::Attribute { .. } => (),
-                Token::Text { text } | Token::Cdata { text, .. } => {
+                Token::Text { text } => {
                     res = Some(xml_unescape(text.as_str())?);
+                }
+                Token::Cdata { text, .. } => {
+                    res = Some(Cow::Borrowed(text.as_str()));
                 }
                 Token::ElementEnd {
                     end: ElementEnd::Close(_, _),
