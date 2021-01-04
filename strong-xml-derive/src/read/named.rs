@@ -66,17 +66,12 @@ pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStrea
             tag,
             name,
             ..
-        } => Some(read_flatten_text(tag, bind, name, ty, &ele_name,)),
+        } => Some(read_flatten_text(tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
     let read_text_fields = fields.iter().filter_map(|field| match field {
-        Field::Text {
-            bind,
-            ty,
-            name,
-            ..
-        } => Some(read_text(&tag, bind, name, ty, &ele_name)),
+        Field::Text { bind, ty, name, .. } => Some(read_text(&tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
