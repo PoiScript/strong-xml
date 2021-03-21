@@ -72,7 +72,7 @@ impl std::fmt::Display for XmlError {
             MissingField { name, field } => {
                 write!(f, "missing field in XML of {:?}: {:?}", name, field)
             }
-            UnterminatedEntity { entity } => write!(f, "unrecognized XML entity: {}", entity),
+            UnterminatedEntity { entity } => write!(f, "unterminated XML entity: {}", entity),
             UnrecognizedSymbol { symbol } => write!(f, "unrecognized XML symbol: {}", symbol),
             FromStr(e) => write!(f, "error parsing XML value: {}", e),
         }
