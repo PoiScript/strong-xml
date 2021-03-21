@@ -7,7 +7,7 @@
 //! ## Quick Start
 //!
 //! ```toml
-//! strong-xml = "0.6.0"
+//! strong-xml = "0.6.1"
 //! ```
 //!
 //! ```rust
