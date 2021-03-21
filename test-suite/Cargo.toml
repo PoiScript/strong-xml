@@ -6,7 +6,7 @@ edition = "2018"
 publish = false
 
 [dependencies]
-chrono = "0.4.11"
-env_logger = "0.7.1"
-log = "0.4.8"
+chrono = "0.4"
+env_logger = "0.8"
+log = "0.4"
 strong-xml = { path = "../strong-xml", features = ["log"] }
