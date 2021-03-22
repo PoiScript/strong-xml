@@ -65,20 +65,13 @@ pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStrea
             ty,
             tag,
             name,
-            is_cdata,
             ..
-        } => Some(read_flatten_text(tag, bind, name, ty, &ele_name, *is_cdata)),
+        } => Some(read_flatten_text(tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
     let read_text_fields = fields.iter().filter_map(|field| match field {
-        Field::Text {
-            bind,
-            ty,
-            name,
-            is_cdata,
-            ..
-        } => Some(read_text(&tag, bind, name, ty, &ele_name, *is_cdata)),
+        Field::Text { bind, ty, name, .. } => Some(read_text(&tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
@@ -203,7 +196,6 @@ fn read_text(
     name: &TokenStream,
     ty: &Type,
     ele_name: &TokenStream,
-    is_cdata: bool,
 ) -> TokenStream {
     let from_str = from_str(ty);
 
@@ -213,7 +205,7 @@ fn read_text(
         quote! {
             strong_xml::log_start_reading_field!(#ele_name, #name);
 
-            let __value = reader.read_text(#tag, #is_cdata)?;
+            let __value = reader.read_text(#tag)?;
             #bind = Some(#from_str);
 
             strong_xml::log_finish_reading_field!(#ele_name, #name);
@@ -255,18 +247,17 @@ fn read_flatten_text(
     name: &TokenStream,
     ty: &Type,
     ele_name: &TokenStream,
-    is_cdata: bool,
 ) -> TokenStream {
     let from_str = from_str(ty);
 
     let read_text = if ty.is_vec() {
         quote! {
-            let __value = reader.read_text(#tag, #is_cdata)?;
+            let __value = reader.read_text(#tag)?;
             #bind.push(#from_str);
         }
     } else {
         quote! {
-            let __value = reader.read_text(#tag, #is_cdata)?;
+            let __value = reader.read_text(#tag)?;
             #bind = Some(#from_str);
         }
     };

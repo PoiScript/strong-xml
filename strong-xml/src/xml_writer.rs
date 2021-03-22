@@ -24,11 +24,12 @@ impl<W: Write> XmlWriter<W> {
         write!(self.inner, r#" {}="{}""#, key, xml_escape(value))
     }
 
-    pub fn write_text(&mut self, content: &str, is_cdata: bool) -> Result<()> {
-        match is_cdata {
-            false => write!(self.inner, "{}", xml_escape(content)),
-            true => write!(self.inner, "<![CDATA[{}]]>", content),
-        }
+    pub fn write_text(&mut self, content: &str) -> Result<()> {
+        write!(self.inner, "{}", xml_escape(content))
+    }
+
+    pub fn write_cdata_text(&mut self, content: &str) -> Result<()> {
+        write!(self.inner, "<![CDATA[{}]]>", content)
     }
 
     pub fn write_element_end_open(&mut self) -> Result<()> {
@@ -38,7 +39,11 @@ impl<W: Write> XmlWriter<W> {
     pub fn write_flatten_text(&mut self, tag: &str, content: &str, is_cdata: bool) -> Result<()> {
         self.write_element_start(tag)?;
         self.write_element_end_open()?;
-        self.write_text(content, is_cdata)?;
+        if is_cdata {
+            self.write_cdata_text(content)?;
+        } else {
+            self.write_text(content)?;
+        }
         self.write_element_end_close(tag)?;
         Ok(())
     }

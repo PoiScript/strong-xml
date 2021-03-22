@@ -230,6 +230,9 @@
 //!
 //! Specifies a CDATA text. Should be used together with `text` or `flatten_text`.
 //!
+//! > `#[xml(cdata)]` only changes the behavior of writing,
+//! > text field without `#[xml(cdata)]` can still works with cdata tag.
+//!
 //! ```rust
 //! use std::borrow::Cow;
 //! use strong_xml::{XmlRead, XmlWrite};
@@ -245,11 +248,6 @@
 //!     (Parent { content: "content".into() }).to_string().unwrap(),
 //!     r#"<parent><![CDATA[content]]></parent>"#
 //! );
-//!
-//! assert_eq!(
-//!     Parent::from_str("<parent></parent>").unwrap(),
-//!     Parent { content: "".into() }
-//! );
 //! ```
 //!
 //! ```rust
@@ -262,11 +260,6 @@
 //!     #[xml(flatten_text = "code", cdata)]
 //!     content: Cow<'a, str>,
 //! }
-//!
-//! assert_eq!(
-//!     Parent::from_str("<parent><code><![CDATA[<escaped />]]></code></parent>").unwrap(),
-//!     Parent { content: "<escaped />".into() }
-//! );
 //!
 //! assert_eq!(
 //!     (Parent { content: r#"hello("deities!");"#.into() }).to_string().unwrap(),

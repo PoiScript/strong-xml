@@ -27,5 +27,24 @@ fn test() -> XmlResult<()> {
         Root::from_str(r#"<root>content</root>"#)?
     );
 
+    assert_eq!(
+        Root { content: "".into() },
+        Root::from_str(r#"<root><![CDATA[]]></root>"#)?
+    );
+
+    assert_eq!(
+        Root {
+            content: "&lt;&gt;".into()
+        },
+        Root::from_str(r#"<root><![CDATA[&lt;&gt;]]></root>"#)?
+    );
+
+    assert_eq!(
+        Root {
+            content: "</>".into()
+        },
+        Root::from_str(r#"<root><![CDATA[</>]]></root>"#)?
+    );
+
     Ok(())
 }

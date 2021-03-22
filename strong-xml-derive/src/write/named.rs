@@ -155,6 +155,11 @@ fn write_text(
     is_cdata: bool,
 ) -> TokenStream {
     let to_str = to_str(ty);
+    let wrtie_fn = if is_cdata {
+        quote!(write_cdata_text)
+    } else {
+        quote!(write_text)
+    };
 
     quote! {
         writer.write_element_end_open()?;
@@ -163,7 +168,7 @@ fn write_text(
 
         let __value = &#name;
 
-        writer.write_text(#to_str, #is_cdata)?;
+        writer.#wrtie_fn(#to_str)?;
 
         strong_xml::log_finish_writing_field!(#ele_name, #name);
 
