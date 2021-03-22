@@ -1,6 +1,6 @@
 [package]
 name = "strong-xml-derive"
-version = "0.6.1"
+version = "0.6.2"
 repository = "https://github.com/PoiScript/strong-xml"
 description = "Derive marco of strong-xml."
 license = "MIT"
