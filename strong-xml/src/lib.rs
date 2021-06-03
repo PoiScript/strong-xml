@@ -302,6 +302,12 @@ mod log;
 #[cfg(not(feature = "log"))]
 mod noop_log;
 
+#[cfg(feature = "log")]
+#[doc(hidden)]
+pub mod lib {
+    pub use log;
+}
+
 mod xml_error;
 mod xml_escape;
 mod xml_read;

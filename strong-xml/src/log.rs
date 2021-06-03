@@ -2,7 +2,7 @@
 #[doc(hidden)]
 macro_rules! log_start_reading {
     ($element:path) => {
-        log::debug!(concat!("[", stringify!($element), "] Started reading"));
+        $crate::lib::log::debug!(concat!("[", stringify!($element), "] Started reading"));
     };
 }
 
@@ -10,7 +10,7 @@ macro_rules! log_start_reading {
 #[doc(hidden)]
 macro_rules! log_finish_reading {
     ($element:path) => {
-        log::debug!(concat!("[", stringify!($element), "] Finished reading"));
+        $crate::lib::log::debug!(concat!("[", stringify!($element), "] Finished reading"));
     };
 }
 
@@ -18,7 +18,7 @@ macro_rules! log_finish_reading {
 #[doc(hidden)]
 macro_rules! log_start_reading_field {
     ($element:path, $name:expr) => {
-        log::trace!(concat!(
+        $crate::lib::log::trace!(concat!(
             "[",
             stringify!($element),
             "] Started reading field `",
@@ -32,7 +32,7 @@ macro_rules! log_start_reading_field {
 #[doc(hidden)]
 macro_rules! log_finish_reading_field {
     ($element:path, $name:expr) => {
-        log::trace!(concat!(
+        $crate::lib::log::trace!(concat!(
             "[",
             stringify!($element),
             "] Finished reading field `",
@@ -46,7 +46,7 @@ macro_rules! log_finish_reading_field {
 #[doc(hidden)]
 macro_rules! log_skip_attribute {
     ($element:path, $key:ident) => {
-        log::info!(
+        $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip attribute `{}`"),
             $key
         );
@@ -57,7 +57,7 @@ macro_rules! log_skip_attribute {
 #[doc(hidden)]
 macro_rules! log_skip_element {
     ($element:path, $tag:ident) => {
-        log::info!(
+        $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip element `{}`"),
             $tag
         );
@@ -68,7 +68,7 @@ macro_rules! log_skip_element {
 #[doc(hidden)]
 macro_rules! log_start_writing {
     ($element:path) => {
-        log::debug!(concat!("[", stringify!($element), "] Started writing"));
+        $crate::lib::log::debug!(concat!("[", stringify!($element), "] Started writing"));
     };
 }
 
@@ -76,7 +76,7 @@ macro_rules! log_start_writing {
 #[doc(hidden)]
 macro_rules! log_finish_writing {
     ($element:path) => {
-        log::debug!(concat!("[", stringify!($element), "] Finished writing"));
+        $crate::lib::log::debug!(concat!("[", stringify!($element), "] Finished writing"));
     };
 }
 
@@ -84,7 +84,7 @@ macro_rules! log_finish_writing {
 #[doc(hidden)]
 macro_rules! log_start_writing_field {
     ($element:path, $name:expr) => {
-        log::trace!(concat!(
+        $crate::lib::log::trace!(concat!(
             "[",
             stringify!($element),
             "] Started writing field `",
@@ -98,7 +98,7 @@ macro_rules! log_start_writing_field {
 #[doc(hidden)]
 macro_rules! log_finish_writing_field {
     ($element:path, $name:expr) => {
-        log::trace!(concat!(
+        $crate::lib::log::trace!(concat!(
             "[",
             stringify!($element),
             "] Finished writing field `",
