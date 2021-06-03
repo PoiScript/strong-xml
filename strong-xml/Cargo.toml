@@ -10,10 +10,10 @@ keywords = ["xml", "xmlparser", "derive", "proc-macro"]
 edition = "2018"
 
 [dependencies]
-jetscii = "0.4"
+jetscii = "0.5"
 lazy_static = "1.4"
 log = { version = "0.4", optional = true }
-memchr = "2.3"
+memchr = "2.4"
 strong-xml-derive = { version = "0.6.2", path = "../strong-xml-derive" }
 xmlparser = "0.13"
 
