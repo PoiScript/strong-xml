@@ -225,6 +225,11 @@ fn read_children(
             #bind.push(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
         },
         Type::OptionT(ty) | Type::T(ty) => quote! {
+            if #bind.is_some() {
+                return Err(XmlError::DuplicateField {
+                    field: stringify!(#( #tags )|*).to_owned(),
+                });
+            }
             #bind = Some(<#ty as strong_xml::XmlRead>::from_reader(reader)?);
         },
         _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
@@ -257,6 +262,11 @@ fn read_flatten_text(
         }
     } else {
         quote! {
+            if #bind.is_some() {
+                return Err(XmlError::DuplicateField {
+                    field: #tag.to_owned(),
+                });
+            }
             let __value = reader.read_text(#tag)?;
             #bind = Some(#from_str);
         }

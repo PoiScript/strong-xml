@@ -92,3 +92,23 @@ fn test() -> XmlResult<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_duplicate() -> XmlResult<()> {
+    let _ = env_logger::builder()
+        .is_test(true)
+        .format_timestamp(None)
+        .try_init();
+
+    assert!(Tag3::from_str(
+        r#"<tag3 att1="att1"><text>content1</text><text>content2</text></tag3>"#
+    )
+    .is_err());
+
+    assert!(Tag3::from_str(
+        r#"<tag3 att1="att1"><tag2>content1</tag2><tag2>content2</tag2></tag3>"#
+    )
+    .is_err());
+
+    Ok(())
+}

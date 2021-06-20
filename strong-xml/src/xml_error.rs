@@ -12,6 +12,7 @@ pub enum XmlError {
     MissingField { name: String, field: String },
     UnterminatedEntity { entity: String },
     UnrecognizedSymbol { symbol: String },
+    DuplicateField { field: String },
     FromStr(Box<dyn Error + Send + Sync>),
 }
 
@@ -74,6 +75,7 @@ impl std::fmt::Display for XmlError {
             }
             UnterminatedEntity { entity } => write!(f, "unterminated XML entity: {}", entity),
             UnrecognizedSymbol { symbol } => write!(f, "unrecognized XML symbol: {}", symbol),
+            DuplicateField { field } => write!(f, "unexpected duplicate field: {}", field),
             FromStr(e) => write!(f, "error parsing XML value: {}", e),
         }
     }
