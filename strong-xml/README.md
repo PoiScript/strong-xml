@@ -293,6 +293,21 @@ assert_eq!(
 );
 ```
 
+#### `#[xml(container)]`
+
+`flatten_text` and `child` can be embedded in a container tag.
+
+```rust
+#[derive(XmlRead, Debug, Clone)]
+#[xml(tag = "root")]
+struct Root {
+    #[xml(container = "cont", flatten_text = "sub", default)]
+    sub_values: Vec<u64>,
+}
+```
+
+This will parse `<root><cont><sub>1</sub><sub>2</sub><sub>3</sub></cont></root>`.
+
 ### License
 
 MIT

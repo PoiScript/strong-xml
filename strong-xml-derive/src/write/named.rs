@@ -23,13 +23,26 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
             bind,
             ty,
             is_cdata,
+            container_tag,
             ..
-        } => Some(write_flatten_text(tag, bind, ty, &ele_name, *is_cdata)),
+        } => Some(write_flatten_text(
+            tag,
+            bind,
+            ty,
+            container_tag.as_ref(),
+            &ele_name,
+            *is_cdata,
+        )),
         _ => None,
     });
 
     let write_child = fields.iter().filter_map(|field| match field {
-        Field::Child { bind, ty, .. } => Some(write_child(bind, ty, &ele_name)),
+        Field::Child {
+            bind,
+            ty,
+            container_tag,
+            ..
+        } => Some(write_child(bind, ty, container_tag.as_ref(), &ele_name)),
         _ => None,
     });
 
@@ -116,34 +129,59 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) ->
     }
 }
 
-fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
-    match ty {
-        Type::OptionT(_) => quote! {
-            strong_xml::log_start_writing_field!(#ele_name, #name);
+fn write_child(
+    name: &Ident,
+    ty: &Type,
+    container_tag: Option<&LitStr>,
+    ele_name: &TokenStream,
+) -> TokenStream {
+    let write = if let Some(tag) = container_tag {
+        match ty {
+            Type::OptionVecT(_) => quote! {
+                if let Some(ref ele) = #name {
+                    writer.write_element_start(#tag)?;
+                    writer.write_element_end_open()?;
+                    for ele in ele {
+                        ele.to_writer(&mut writer)?;
+                    }
+                    writer.write_element_end_close(#tag)?;
+                }
+            },
+            Type::VecT(_) => quote! {
+                writer.write_element_start(#tag)?;
+                writer.write_element_end_open()?;
+                for ele in #name {
+                    ele.to_writer(&mut writer)?;
+                }
+                writer.write_element_end_close(#tag)?;
+            },
+            _ => panic!("`child` + `container` attribute only supports Vec<T> and Option<Vec<T>>."),
+        }
+    } else {
+        match ty {
+            Type::OptionT(_) => quote! {
+                if let Some(ref ele) = #name {
+                    ele.to_writer(&mut writer)?;
+                }
+            },
+            Type::VecT(_) => quote! {
+                for ele in #name {
+                    ele.to_writer(&mut writer)?;
+                }
+            },
+            Type::T(_) => quote! {
+                &#name.to_writer(&mut writer)?;
+            },
+            _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
+        }
+    };
 
-            if let Some(ref ele) = #name {
-                ele.to_writer(&mut writer)?;
-            }
+    quote! {
+        strong_xml::log_start_writing_field!(#ele_name, #name);
 
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-        },
-        Type::VecT(_) => quote! {
-            strong_xml::log_start_writing_field!(#ele_name, #name);
+        #write
 
-            for ele in #name {
-                ele.to_writer(&mut writer)?;
-            }
-
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-        },
-        Type::T(_) => quote! {
-            strong_xml::log_start_writing_field!(#ele_name, #name);
-
-            &#name.to_writer(&mut writer)?;
-
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-        },
-        _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
+        strong_xml::log_finish_writing_field!(#ele_name, #name);
     }
 }
 
@@ -180,55 +218,80 @@ fn write_flatten_text(
     tag: &LitStr,
     name: &Ident,
     ty: &Type,
+    container_tag: Option<&LitStr>,
     ele_name: &TokenStream,
     is_cdata: bool,
 ) -> TokenStream {
-    let to_str = to_str(ty);
-
-    if ty.is_vec() {
-        quote! {
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-
-            for __value in #name {
-                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+    let write = if let Some(container_tag) = container_tag {
+        let to_str = to_str(ty);
+        if ty.is_option() {
+            quote! {
+                if let Some(__value) = #name {
+                    writer.write_element_start(#container_tag)?;
+                    writer.write_element_end_open()?;
+                    for __value in __value {
+                        writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+                    }
+                    writer.write_element_end_close(#container_tag)?;
+                }
             }
-
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-        }
-    } else if ty.is_option() {
-        quote! {
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-
-            if let Some(__value) = #name {
-                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+        } else if ty.is_vec() {
+            quote! {
+                writer.write_element_start(#container_tag)?;
+                writer.write_element_end_open()?;
+                for __value in #name {
+                    writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+                }
+                writer.write_element_end_close(#container_tag)?;
             }
-
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
+        } else {
+            panic!(
+                "`flatten_text` + `container` attribute only supports Vec<T> and Option<Vec<T>>."
+            )
         }
     } else {
-        quote! {
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
-
-            let __value = &#name;
-            writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
-
-            strong_xml::log_finish_writing_field!(#ele_name, #name);
+        let to_str = to_str(ty);
+        if ty.is_vec() {
+            quote! {
+                for __value in #name {
+                    writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+                }
+            }
+        } else if ty.is_option() {
+            quote! {
+                if let Some(__value) = #name {
+                    writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+                }
+            }
+        } else {
+            quote! {
+                let __value = &#name;
+                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+            }
         }
+    };
+
+    quote! {
+        strong_xml::log_finish_writing_field!(#ele_name, #name);
+
+        #write
+
+        strong_xml::log_finish_writing_field!(#ele_name, #name);
     }
 }
 
 fn to_str(ty: &Type) -> TokenStream {
     match &ty {
-        Type::CowStr | Type::OptionCowStr | Type::VecCowStr => {
+        Type::CowStr | Type::OptionCowStr | Type::VecCowStr | Type::OptionVecCowStr => {
             quote! { __value }
         }
-        Type::Bool | Type::OptionBool | Type::VecBool => quote! {
+        Type::Bool | Type::OptionBool | Type::VecBool | Type::OptionVecBool => quote! {
             match __value {
                 true => "true",
                 false => "false"
             }
         },
-        Type::T(_) | Type::OptionT(_) | Type::VecT(_) => {
+        Type::T(_) | Type::OptionT(_) | Type::VecT(_) | Type::OptionVecT(_) => {
             quote! { &format!("{}", __value) }
         }
     }
