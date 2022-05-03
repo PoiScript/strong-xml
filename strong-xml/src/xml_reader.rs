@@ -67,6 +67,12 @@ impl<'a> XmlReader<'a> {
                         });
                     }
                 }
+                Token::ElementEnd {
+                    end: ElementEnd::Empty,
+                    ..
+                } => {
+                    break;
+                }
                 token => {
                     return Err(XmlError::UnexpectedToken {
                         token: format!("{:?}", token),
