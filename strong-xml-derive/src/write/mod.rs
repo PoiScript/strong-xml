@@ -26,9 +26,13 @@ pub fn impl_write(element: Element) -> TokenStream {
             });
 
             let read = variants.iter().map(|variant| match variant {
-                Fields::Named { tag, name, fields } => {
-                    named::write(&tag, quote!( #ele_name::#name ), &fields)
-                }
+                Fields::Named {
+                    tag,
+                    name,
+                    fields,
+                    prefix,
+                    namespaces,
+                } => named::write(tag, prefix, quote!( #ele_name::#name ), &fields),
                 Fields::Newtype { name, .. } => newtype::write(quote!( #ele_name::#name )),
             });
 
@@ -43,7 +47,13 @@ pub fn impl_write(element: Element) -> TokenStream {
             name: ele_name,
             fields,
         } => match fields {
-            Fields::Named { tag, name, fields } => {
+            Fields::Named {
+                tag,
+                name,
+                fields,
+                prefix,
+                namespaces,
+            } => {
                 let bindings = fields.iter().map(|field| match field {
                     Field::Attribute { bind, name, .. }
                     | Field::Child { bind, name, .. }
@@ -51,7 +61,7 @@ pub fn impl_write(element: Element) -> TokenStream {
                     | Field::FlattenText { bind, name, .. } => quote!( #name: #bind ),
                 });
 
-                let read = named::write(&tag, quote!(#name), &fields);
+                let read = named::write(&tag, &prefix, quote!(#name), &fields);
 
                 quote! {
                     let #ele_name { #( #bindings ),* } = self;

@@ -18,9 +18,13 @@ pub fn impl_read(element: Element) -> TokenStream {
             });
 
             let read = variants.iter().map(|variant| match variant {
-                Fields::Named { tag, name, fields } => {
-                    named::read(&tag, quote!(#ele_name::#name), &fields)
-                }
+                Fields::Named {
+                    tag,
+                    name,
+                    fields,
+                    prefix,
+                    namespaces,
+                } => named::read(&tag, quote!(#ele_name::#name), &fields),
                 Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#ele_name::#name)),
             });
 
@@ -42,7 +46,13 @@ pub fn impl_read(element: Element) -> TokenStream {
         }
 
         Element::Struct { fields, .. } => match fields {
-            Fields::Named { tag, name, fields } => named::read(&tag, quote!(#name), &fields),
+            Fields::Named {
+                tag,
+                name,
+                fields,
+                prefix,
+                namespaces,
+            } => named::read(&tag, quote!(#name), &fields),
             Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#name)),
         },
     }

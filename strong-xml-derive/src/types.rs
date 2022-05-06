@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Lit::*, Meta::*, *};
@@ -31,6 +33,8 @@ pub enum Fields {
         tag: LitStr,
         name: Ident,
         fields: Vec<Field>,
+        prefix: Option<LitStr>,
+        namespaces: BTreeMap<Option<String>, LitStr>,
     },
     /// Newtype struct or newtype variant
     ///
@@ -49,6 +53,8 @@ pub enum Fields {
         tags: Vec<LitStr>,
         name: Ident,
         ty: Type,
+        prefix: Option<LitStr>,
+        namespaces: BTreeMap<Option<String>, LitStr>,
     },
 }
 
@@ -67,6 +73,7 @@ pub enum Field {
         ty: Type,
         tag: LitStr,
         default: bool,
+        prefix: Option<LitStr>,
     },
     /// Child(ren) Field
     ///
@@ -82,6 +89,7 @@ pub enum Field {
         ty: Type,
         default: bool,
         tags: Vec<LitStr>,
+        prefix: Option<LitStr>,
     },
     /// Text Field
     ///
@@ -160,6 +168,8 @@ impl Fields {
     pub fn parse(fields: syn::Fields, attrs: Vec<Attribute>, name: Ident) -> Fields {
         // Finding `tag` attribute
         let mut tags = Vec::new();
+        let mut namespaces: BTreeMap<Option<String>, LitStr> = BTreeMap::default();
+        let mut prefix = None;
 
         for meta in attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
@@ -169,6 +179,60 @@ impl Fields {
                     } else {
                         panic!("Expected a string literal.");
                     }
+                }
+                NestedMeta::Meta(NameValue(m)) if m.path.is_ident("prefix") => {
+                    if let Str(lit) = m.lit {
+                        if prefix.is_some() {
+                            panic!("Duplicate `ns` attribute.");
+                        } else {
+                            prefix = Some(lit);
+                        }
+                    } else {
+                        panic!("Expected a string literal.");
+                    }
+                }
+                NestedMeta::Meta(NameValue(m))
+                    if m.path
+                        .get_ident()
+                        .filter(|ident| ident.to_string().starts_with("xmlns"))
+                        .is_some() =>
+                {
+                    let prefix = m
+                        .path
+                        .get_ident()
+                        .unwrap()
+                        .to_string()
+                        .strip_prefix("xmlns:")
+                        .map(|p| p.to_owned());
+
+                    let namespace = if let Str(lit) = m.lit {
+                        lit
+                    } else {
+                        panic!("Expected a string literal.");
+                    };
+
+                    if let Some(prefix) = &prefix {
+                        if prefix.contains(":") {
+                            panic!("prefix cannot contain `:`");
+                        }
+
+                        if prefix == "xml"
+                            && namespace.value() != "http://www.w3.org/XML/1998/namespace"
+                        {
+                            panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
+                        } else if prefix.starts_with("xml") {
+                            panic!("prefix cannot start with `xml`");
+                        }
+                    }
+
+                    if namespaces.contains_key(&prefix) {
+                        if let Some(ref prefix) = &prefix {
+                            panic!("namespace {} already defined", prefix);
+                        } else {
+                            panic!("default namespace already defined");
+                        };
+                    }
+                    namespaces.insert(prefix, namespace);
                 }
                 _ => (),
             }
@@ -182,6 +246,8 @@ impl Fields {
             syn::Fields::Unit => Fields::Named {
                 name,
                 tag: tags.remove(0),
+                prefix,
+                namespaces,
                 fields: Vec::new(),
             },
             syn::Fields::Unnamed(fields) => {
@@ -194,6 +260,8 @@ impl Fields {
                             name,
                             tags,
                             ty: Type::parse(field.ty),
+                            prefix,
+                            namespaces,
                         };
                     }
                 }
@@ -201,6 +269,8 @@ impl Fields {
                 Fields::Named {
                     name,
                     tag: tags.remove(0),
+                    namespaces,
+                    prefix,
                     fields: fields
                         .unnamed
                         .into_iter()
@@ -216,6 +286,8 @@ impl Fields {
             syn::Fields::Named(_) => Fields::Named {
                 name,
                 tag: tags.remove(0),
+                namespaces,
+                prefix,
                 fields: fields
                     .into_iter()
                     .map(|field| {
@@ -237,6 +309,8 @@ impl Field {
         let mut is_text = false;
         let mut flatten_text_tag = None;
         let mut is_cdata = false;
+        let mut prefix = None;
+        let mut namespaces: BTreeMap<Option<String>, LitStr> = BTreeMap::default();
 
         for meta in field.attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
@@ -324,6 +398,64 @@ impl Field {
                         panic!("Expected a string literal.");
                     }
                 }
+                NestedMeta::Meta(NameValue(m)) if m.path.is_ident("prefix") => {
+                    if let Str(lit) = m.lit {
+                        if is_text {
+                            panic!("`prefix` attribute and `text` attribute is disjoint.");
+                        } else if flatten_text_tag.is_some() {
+                            panic!("`prefix` attribute and `flatten_text` attribute is disjoint.");
+                        } else if prefix.is_some() {
+                            panic!("Duplicate `prefix` attribute.");
+                        } else {
+                            prefix = Some(lit);
+                        }
+                    } else {
+                        panic!("Expected a string literal.");
+                    }
+                }
+                NestedMeta::Meta(NameValue(m))
+                    if m.path
+                        .get_ident()
+                        .filter(|ident| ident.to_string().starts_with("xmlns"))
+                        .is_some() =>
+                {
+                    let prefix = m
+                        .path
+                        .get_ident()
+                        .unwrap()
+                        .to_string()
+                        .strip_prefix("xmlns:")
+                        .map(|p| p.to_owned());
+
+                    let namespace = if let Str(lit) = m.lit {
+                        lit
+                    } else {
+                        panic!("Expected a string literal.");
+                    };
+
+                    if let Some(prefix) = &prefix {
+                        if prefix.contains(":") {
+                            panic!("prefix cannot contain `:`");
+                        }
+
+                        if prefix == "xml"
+                            && namespace.value() != "http://www.w3.org/XML/1998/namespace"
+                        {
+                            panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
+                        } else if prefix.starts_with("xml") {
+                            panic!("prefix cannot start with `xml`");
+                        }
+                    }
+
+                    if namespaces.contains_key(&prefix) {
+                        if let Some(ref prefix) = &prefix {
+                            panic!("namespace {} already defined", prefix);
+                        } else {
+                            panic!("default namespace already defined");
+                        };
+                    }
+                    namespaces.insert(prefix, namespace);
+                }
                 _ => (),
             }
         }
@@ -334,6 +466,7 @@ impl Field {
                 bind,
                 ty: Type::parse(field.ty),
                 tag,
+                prefix,
                 default,
             }
         } else if !child_tags.is_empty() {
@@ -342,6 +475,7 @@ impl Field {
                 bind,
                 ty: Type::parse(field.ty),
                 default,
+                prefix,
                 tags: child_tags,
             }
         } else if is_text {
