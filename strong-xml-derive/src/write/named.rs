@@ -146,7 +146,7 @@ fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
         Type::T(_) => quote! {
             strong_xml::log_start_writing_field!(#ele_name, #name);
 
-            &#name.to_writer(&mut writer)?;
+            #name.to_writer(&mut writer)?;
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         },
