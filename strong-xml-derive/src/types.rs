@@ -1,10 +1,12 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;
+
+type Namespaces = BTreeMap<Option<String>, String>;
 
 pub enum Element {
     Struct { name: Ident, fields: Fields },
@@ -34,7 +36,7 @@ pub enum Fields {
         name: Ident,
         fields: Vec<Field>,
         prefix: Option<LitStr>,
-        namespaces: BTreeMap<Option<String>, LitStr>,
+        namespaces: Namespaces,
     },
     /// Newtype struct or newtype variant
     ///
@@ -54,7 +56,7 @@ pub enum Fields {
         name: Ident,
         ty: Type,
         prefix: Option<LitStr>,
-        namespaces: BTreeMap<Option<String>, LitStr>,
+        namespaces: Namespaces,
     },
 }
 
@@ -168,7 +170,7 @@ impl Fields {
     pub fn parse(fields: syn::Fields, attrs: Vec<Attribute>, name: Ident) -> Fields {
         // Finding `tag` attribute
         let mut tags = Vec::new();
-        let mut namespaces: BTreeMap<Option<String>, LitStr> = BTreeMap::default();
+        let mut namespaces: Namespaces = BTreeMap::default();
         let mut prefix = None;
 
         for meta in attrs.into_iter().filter_map(get_xml_meta).flatten() {
@@ -191,6 +193,43 @@ impl Fields {
                         panic!("Expected a string literal.");
                     }
                 }
+                NestedMeta::Meta(NameValue(MetaNameValue { lit, path, .. })) if path.is_ident("ns") => {
+                    
+                    let (prefix, namespace) = if let Str(lit) = lit {
+                        if let Some((pfx, ns)) = lit.value().split_once(':'){
+                            
+                            (Some(pfx.to_string()), ns.to_string())
+                        } else {
+                            (None, lit.value().to_string())
+                        }
+                    } else {
+                        panic!("Expected a string literal.");
+                    };
+
+                    if namespaces.contains_key(&prefix) {
+                        if let Some(ref prefix) = prefix {
+                            panic!("namespace {} already defined", prefix);
+                        } else {
+                            panic!("default namespace already defined");
+                        };
+                    }
+                    
+                    
+                    if let Some(prefix) = &prefix {
+                        if prefix.contains(":") {
+                            panic!("prefix cannot contain `:`");
+                        }
+
+                        if prefix == "xml"
+                            && namespace != "http://www.w3.org/XML/1998/namespace"
+                        {
+                            panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
+                        } else if prefix.starts_with("xml") {
+                            panic!("prefix cannot start with `xml`");
+                        }
+                    }
+                    namespaces.insert(prefix, namespace);
+                }
                 NestedMeta::Meta(NameValue(m))
                     if m.path
                         .get_ident()
@@ -204,35 +243,6 @@ impl Fields {
                         .to_string()
                         .strip_prefix("xmlns:")
                         .map(|p| p.to_owned());
-
-                    let namespace = if let Str(lit) = m.lit {
-                        lit
-                    } else {
-                        panic!("Expected a string literal.");
-                    };
-
-                    if let Some(prefix) = &prefix {
-                        if prefix.contains(":") {
-                            panic!("prefix cannot contain `:`");
-                        }
-
-                        if prefix == "xml"
-                            && namespace.value() != "http://www.w3.org/XML/1998/namespace"
-                        {
-                            panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
-                        } else if prefix.starts_with("xml") {
-                            panic!("prefix cannot start with `xml`");
-                        }
-                    }
-
-                    if namespaces.contains_key(&prefix) {
-                        if let Some(ref prefix) = &prefix {
-                            panic!("namespace {} already defined", prefix);
-                        } else {
-                            panic!("default namespace already defined");
-                        };
-                    }
-                    namespaces.insert(prefix, namespace);
                 }
                 _ => (),
             }
@@ -310,7 +320,7 @@ impl Field {
         let mut flatten_text_tag = None;
         let mut is_cdata = false;
         let mut prefix = None;
-        let mut namespaces: BTreeMap<Option<String>, LitStr> = BTreeMap::default();
+        let mut namespaces: Namespaces = BTreeMap::default();
 
         for meta in field.attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
@@ -416,45 +426,10 @@ impl Field {
                 NestedMeta::Meta(NameValue(m))
                     if m.path
                         .get_ident()
-                        .filter(|ident| ident.to_string().starts_with("xmlns"))
+                        .filter(|ident| ident.to_string().starts_with("ns"))
                         .is_some() =>
                 {
-                    let prefix = m
-                        .path
-                        .get_ident()
-                        .unwrap()
-                        .to_string()
-                        .strip_prefix("xmlns:")
-                        .map(|p| p.to_owned());
-
-                    let namespace = if let Str(lit) = m.lit {
-                        lit
-                    } else {
-                        panic!("Expected a string literal.");
-                    };
-
-                    if let Some(prefix) = &prefix {
-                        if prefix.contains(":") {
-                            panic!("prefix cannot contain `:`");
-                        }
-
-                        if prefix == "xml"
-                            && namespace.value() != "http://www.w3.org/XML/1998/namespace"
-                        {
-                            panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
-                        } else if prefix.starts_with("xml") {
-                            panic!("prefix cannot start with `xml`");
-                        }
-                    }
-
-                    if namespaces.contains_key(&prefix) {
-                        if let Some(ref prefix) = &prefix {
-                            panic!("namespace {} already defined", prefix);
-                        } else {
-                            panic!("default namespace already defined");
-                        };
-                    }
-                    namespaces.insert(prefix, namespace);
+                    panic!("Namespace declaration not supported in this position");
                 }
                 _ => (),
             }

@@ -60,6 +60,12 @@ pub fn write(tag: &LitStr, prefix: &Option<LitStr>, ele_name: TokenStream, field
         _ => None,
     });
 
+    let prefix = if let Some(prefix) = prefix {
+        quote!(Some(#prefix))
+    } else {
+        quote!(None)
+    };
+
     let write_element_end = if is_leaf_element {
         quote! { writer.write_element_end_empty()?; }
     } else if is_text_element {
