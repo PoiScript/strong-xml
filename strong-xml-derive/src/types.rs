@@ -1,12 +1,12 @@
 use std::collections::BTreeMap;
 
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;
 
-type Namespaces = BTreeMap<Option<String>, String>;
+pub type Namespaces = BTreeMap<Option<String>, String>;
 
 pub enum Element {
     Struct { name: Ident, fields: Fields },
@@ -196,8 +196,7 @@ impl Fields {
                 NestedMeta::Meta(NameValue(MetaNameValue { lit, path, .. })) if path.is_ident("ns") => {
                     
                     let (prefix, namespace) = if let Str(lit) = lit {
-                        if let Some((pfx, ns)) = lit.value().split_once(':'){
-                            
+                        if let Some((pfx, ns)) = lit.value().split_once(": "){
                             (Some(pfx.to_string()), ns.to_string())
                         } else {
                             (None, lit.value().to_string())
@@ -229,20 +228,6 @@ impl Fields {
                         }
                     }
                     namespaces.insert(prefix, namespace);
-                }
-                NestedMeta::Meta(NameValue(m))
-                    if m.path
-                        .get_ident()
-                        .filter(|ident| ident.to_string().starts_with("xmlns"))
-                        .is_some() =>
-                {
-                    let prefix = m
-                        .path
-                        .get_ident()
-                        .unwrap()
-                        .to_string()
-                        .strip_prefix("xmlns:")
-                        .map(|p| p.to_owned());
                 }
                 _ => (),
             }
@@ -320,7 +305,6 @@ impl Field {
         let mut flatten_text_tag = None;
         let mut is_cdata = false;
         let mut prefix = None;
-        let mut namespaces: Namespaces = BTreeMap::default();
 
         for meta in field.attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {

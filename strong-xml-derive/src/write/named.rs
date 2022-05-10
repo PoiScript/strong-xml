@@ -2,9 +2,11 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, LitStr};
 
-use crate::types::{Field, Type};
+use crate::types::{Field, Type, Namespaces};
 
-pub fn write(tag: &LitStr, prefix: &Option<LitStr>, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
+pub fn write(tag: &LitStr, prefix: &Option<LitStr>, ele_name: TokenStream, fields: &[Field], namespaces: &Namespaces) -> TokenStream {
+    
+    let write_namespaces = write_namespaces(namespaces);
 
     let write_attributes = fields.iter().filter_map(|field| match field {
         Field::Attribute { tag, prefix, bind, ty, .. } => Some(write_attrs(&tag, prefix, &bind, &ty, &ele_name)),
@@ -87,7 +89,8 @@ pub fn write(tag: &LitStr, prefix: &Option<LitStr>, ele_name: TokenStream, field
         strong_xml::log_start_writing!(#ele_name);
 
         writer.write_element_start(#prefix, #tag)?;
-
+        
+       #write_namespaces 
         #( #write_attributes )*
 
         #write_element_end
@@ -95,6 +98,8 @@ pub fn write(tag: &LitStr, prefix: &Option<LitStr>, ele_name: TokenStream, field
         strong_xml::log_finish_writing!(#ele_name);
     }
 }
+
+
 
 fn write_attrs(tag: &LitStr, prefix: &Option<LitStr>, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let to_str = to_str(ty);
@@ -127,6 +132,20 @@ fn write_attrs(tag: &LitStr, prefix: &Option<LitStr>, name: &Ident, ty: &Type, e
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         }
     }
+}
+
+
+fn write_namespaces(namespaces: &Namespaces) -> TokenStream {
+    namespaces.iter().map(|(prefix, ns)|{
+        let prefix = if let Some(prefix) = prefix {
+            quote!(Some(#prefix))
+        } else {
+            quote!(None)
+        };
+        quote! {
+            writer.write_namespace_declaration(#prefix, #ns)?;
+        }
+    }).collect()
 }
 
 fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {

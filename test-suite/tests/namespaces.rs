@@ -23,7 +23,7 @@ fn test() -> XmlResult<()> {
             }]
         })
         .to_string()?,
-        r#"<n:nested><n:nested><n:nested><n:nested/></n:nested></n:nested></n:nested>"#
+        r#"<n:nested xmlns:n="http://www.example.com"><n:nested><n:nested><n:nested/></n:nested></n:nested></n:nested>"#
     );
     
     Ok(())
