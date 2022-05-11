@@ -8,12 +8,12 @@ use crate::xml_escape::xml_escape;
 pub struct XmlWriter<W: Write> {
     pub inner: W,
     pub used_namespaces: BTreeMap<Option<&'static str>, Vec<&'static str>>,
-    pub set_prefixes: Vec<BTreeSet<Option<&'static str>>>
+    pub set_prefixes: Vec<BTreeSet<Option<&'static str>>>,
 }
 
 impl<W: Write> XmlWriter<W> {
     pub fn new(inner: W) -> Self {
-        XmlWriter { 
+        XmlWriter {
             inner,
             used_namespaces: BTreeMap::new(),
             set_prefixes: Vec::new(),
@@ -33,7 +33,11 @@ impl<W: Write> XmlWriter<W> {
         }
     }
 
-    pub fn write_namespace_declaration(&mut self, prefix: Option<&'static str>, ns: &'static str) -> Result<()> {
+    pub fn write_namespace_declaration(
+        &mut self,
+        prefix: Option<&'static str>,
+        ns: &'static str,
+    ) -> Result<()> {
         if !self.is_prefix_defined_as(&prefix, ns) {
             self.push_changed_namespace(prefix, ns)?;
             if let Some(prefix) = prefix {
@@ -41,14 +45,12 @@ impl<W: Write> XmlWriter<W> {
             } else {
                 write!(self.inner, r#" xmlns="{}""#, xml_escape(ns))
             }
-        } else  {
+        } else {
             Ok(())
         }
     }
 
     pub fn write_attribute(&mut self, prefix: Option<&str>, key: &str, value: &str) -> Result<()> {
-
-
         if let Some(prefix) = prefix {
             write!(self.inner, r#" {}:{}="{}""#, prefix, key, xml_escape(value))
         } else {
@@ -68,7 +70,13 @@ impl<W: Write> XmlWriter<W> {
         write!(self.inner, ">")
     }
 
-    pub fn write_flatten_text(&mut self, prefix: Option<&str>, tag: &str, content: &str, is_cdata: bool) -> Result<()> {
+    pub fn write_flatten_text(
+        &mut self,
+        prefix: Option<&str>,
+        tag: &str,
+        content: &str,
+        is_cdata: bool,
+    ) -> Result<()> {
         self.write_element_start(prefix, tag)?;
         self.write_element_end_open()?;
         if is_cdata {
@@ -110,48 +118,66 @@ impl<W: Write> XmlWriter<W> {
                     None
                 }
             }
-            _ => None
+            _ => None,
         }
     }
 
     fn pop_changed_namespaces(&mut self) -> Result<()> {
         use std::io::{Error, ErrorKind};
         if let Some(set_prefixes) = self.set_prefixes.pop() {
-            set_prefixes.iter().map(|pfx| -> Result<()> {
-                match self.used_namespaces.get_mut(pfx) {
-                    Some(v) => {
-                        if let Some(_) = v.pop() {
-                            Ok(())
-                        } else {
-                            Err(Error::new(ErrorKind::Other, "Prefix state could not be popped"))
+            set_prefixes
+                .iter()
+                .map(|pfx| -> Result<()> {
+                    match self.used_namespaces.get_mut(pfx) {
+                        Some(v) => {
+                            if let Some(_) = v.pop() {
+                                Ok(())
+                            } else {
+                                Err(Error::new(
+                                    ErrorKind::Other,
+                                    "Prefix state could not be popped",
+                                ))
+                            }
                         }
+                        None => Err(Error::new(
+                            ErrorKind::Other,
+                            "Prefix does not exist in scope",
+                        )),
                     }
-                    None => Err(Error::new(ErrorKind::Other, "Prefix does not exist in scope"))
-                }
-            }).collect::<Result<Vec<()>>>()?;
+                })
+                .collect::<Result<Vec<()>>>()?;
             Ok(())
         } else {
-            Err(Error::new(ErrorKind::Other, "Failed to restore previous prefix scope"))
+            Err(Error::new(
+                ErrorKind::Other,
+                "Failed to restore previous prefix scope",
+            ))
         }
     }
 
-    fn push_changed_namespace(&mut self, prefix: Option<&'static str>, namespace: &'static str) -> Result<()> {
+    fn push_changed_namespace(
+        &mut self,
+        prefix: Option<&'static str>,
+        namespace: &'static str,
+    ) -> Result<()> {
         use std::io::{Error, ErrorKind};
 
         let set_prefixes = if let Some(blah) = self.set_prefixes.last_mut() {
             blah
         } else {
-            return Err(Error::new(ErrorKind::Other, "Failed to get current prefix scope"));
+            return Err(Error::new(
+                ErrorKind::Other,
+                "Failed to get current prefix scope",
+            ));
         };
 
-        
         if let Some(v) = self.used_namespaces.get_mut(&prefix) {
             v.push(namespace);
         } else {
             self.used_namespaces.insert(prefix, vec![namespace]);
         }
         set_prefixes.insert(prefix);
-       
+
         Ok(())
     }
 }

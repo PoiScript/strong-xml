@@ -120,6 +120,7 @@ pub enum Field {
         bind: Ident,
         ty: Type,
         default: bool,
+        prefix: Option<LitStr>,
         tag: LitStr,
         is_cdata: bool,
     },
@@ -193,10 +194,11 @@ impl Fields {
                         panic!("Expected a string literal.");
                     }
                 }
-                NestedMeta::Meta(NameValue(MetaNameValue { lit, path, .. })) if path.is_ident("ns") => {
-                    
+                NestedMeta::Meta(NameValue(MetaNameValue { lit, path, .. }))
+                    if path.is_ident("ns") =>
+                {
                     let (prefix, namespace) = if let Str(lit) = lit {
-                        if let Some((pfx, ns)) = lit.value().split_once(": "){
+                        if let Some((pfx, ns)) = lit.value().split_once(": ") {
                             (Some(pfx.to_string()), ns.to_string())
                         } else {
                             (None, lit.value().to_string())
@@ -212,16 +214,13 @@ impl Fields {
                             panic!("default namespace already defined");
                         };
                     }
-                    
-                    
+
                     if let Some(prefix) = &prefix {
                         if prefix.contains(":") {
                             panic!("prefix cannot contain `:`");
                         }
 
-                        if prefix == "xml"
-                            && namespace != "http://www.w3.org/XML/1998/namespace"
-                        {
+                        if prefix == "xml" && namespace != "http://www.w3.org/XML/1998/namespace" {
                             panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
                         } else if prefix.starts_with("xml") {
                             panic!("prefix cannot start with `xml`");
@@ -450,6 +449,7 @@ impl Field {
                 bind,
                 ty: Type::parse(field.ty),
                 default,
+                prefix,
                 tag,
                 is_cdata,
             }
