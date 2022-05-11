@@ -61,7 +61,20 @@ pub fn read(
             tags,
             name,
             ..
-        } => Some(read_children(tags, bind, name, ty, &ele_name)),
+        } => {
+            let tags: Vec<_> = tags.iter().map(|tag|{
+                if tag.value().matches(":").count() > 1 {
+                    panic!("child cannot have more than one colon in name.")
+                } 
+                match tag.value().split_once(':') {
+                    Some(("", local)) => (None, local.to_owned()),
+                    Some((prefix, local)) => (Some(prefix.to_owned()), local.to_owned()),
+                    None => (None, tag.value())
+                }
+            }).collect();
+
+            Some(read_children(&tags[..], bind, name, ty, &ele_name))
+        }
         _ => None,
     });
 
@@ -115,7 +128,7 @@ pub fn read(
                 #return_fields
             }
 
-            while let Some((__prefix, __local)) = reader.find_element_start(Some(#prefix, #local))? {
+            while let Some((__prefix, __local)) = reader.find_element_start(Some((#prefix, #local)))? {
                 match (__prefix, __local) {
                     #( #read_child_fields, )*
                     #( #read_flatten_text_fields, )*
@@ -191,11 +204,17 @@ fn read_attrs(
 ) -> TokenStream {
     let from_str = from_str(ty);
 
+    let prefix = if let Some(lit) = prefix {
+        quote!(#lit)
+    } else {
+        quote!("")
+    };
+
     if ty.is_vec() {
         panic!("`attr` attribute doesn't support Vec.");
     } else {
         quote! {
-             => {
+            (#prefix, #local) => {
                 strong_xml::log_start_reading_field!(#ele_name, #name);
 
                 #bind = Some(#from_str);
@@ -215,6 +234,12 @@ fn read_text(
     ele_name: &TokenStream,
 ) -> TokenStream {
     let from_str = from_str(ty);
+    
+    let prefix = if let Some(lit) = prefix {
+        quote!(#lit)
+    } else {
+        quote!("")
+    };
 
     if ty.is_vec() {
         panic!("`text` attribute doesn't support Vec.");
@@ -231,7 +256,7 @@ fn read_text(
 }
 
 fn read_children(
-    tags: &[(Option<LitStr>, LitStr)],
+    tags: &[(Option<String>, String)],
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -248,7 +273,11 @@ fn read_children(
     };
 
     let (prefixes, locals): (Vec<_>, Vec<_>) = tags.iter().cloned().unzip();
-
+    let prefixes = prefixes.iter().map(|prefix| if let Some(lit) = prefix {
+        quote!(#lit)
+    } else {
+        quote!("")
+    });
     quote! {
         #( (#prefixes, #locals) )|* => {
             strong_xml::log_start_reading_field!(#ele_name, #name);
@@ -269,6 +298,12 @@ fn read_flatten_text(
     ele_name: &TokenStream,
 ) -> TokenStream {
     let from_str = from_str(ty);
+
+    let prefix = if let Some(lit) = prefix {
+        quote!(#lit)
+    } else {
+        quote!("")
+    };
 
     let read_text = if ty.is_vec() {
         quote! {

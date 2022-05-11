@@ -42,17 +42,26 @@ macro_rules! log_finish_reading_field {
     };
 }
 
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! make_tag {
+    ($prefix:ident, $local:ident) => {
+        if $prefix.is_empty() {
+            $local.to_owned()
+        } else {
+            ($prefix.to_owned() + ":" + $local)
+        }
+    };
+}
+
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_skip_attribute {
     ($element:path, $prefix:ident, $local:ident) => {
         $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip attribute `{}`"),
-            if $prefix.is_empty() {
-                $local
-            } else {
-                &($prefix.to_owned() + ":" + $local)
-            }
+            $crate::make_tag!($prefix, $local)
         );
     };
 }
@@ -63,11 +72,7 @@ macro_rules! log_skip_element {
     ($element:path, $prefix:ident, $local:ident) => {
         $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip element `{}`"),
-            if $prefix.is_empty() {
-                $local
-            } else {
-                &($prefix.to_owned() + ":" + $local)
-            }
+            $crate::make_tag!($prefix, $local)
         );
     };
 }

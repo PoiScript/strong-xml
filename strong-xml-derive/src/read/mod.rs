@@ -13,7 +13,13 @@ pub fn impl_read(element: Element) -> TokenStream {
             name: ele_name,
             variants,
         } => {
-            let make_prefix = |prefix: &Option<LitStr>| prefix.clone();
+            let make_prefix = |prefix: &Option<LitStr>| {
+                if let Some(lit) = prefix {
+                    quote!(#lit)
+                } else {
+                    quote!("")
+                }
+            };
 
             let (prefixes, locals): (Vec<_>, Vec<_>) = variants
                 .iter()
