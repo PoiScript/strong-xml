@@ -2,18 +2,21 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, LitStr};
 
-use crate::types::{Field, Type};
+use crate::types::{Field, Type, Namespaces};
 
-pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
+pub fn write(tag: &LitStr, prefix: &Option<LitStr>, ele_name: TokenStream, fields: &[Field], namespaces: &Namespaces) -> TokenStream {
+    
+    let write_namespaces = write_namespaces(namespaces);
+
     let write_attributes = fields.iter().filter_map(|field| match field {
-        Field::Attribute { tag, bind, ty, .. } => Some(write_attrs(&tag, &bind, &ty, &ele_name)),
+        Field::Attribute { tag, prefix, bind, ty, .. } => Some(write_attrs(&tag, prefix, &bind, &ty, &ele_name)),
         _ => None,
     });
 
     let write_text = fields.iter().filter_map(|field| match field {
         Field::Text {
-            bind, ty, is_cdata, ..
-        } => Some(write_text(tag, bind, ty, &ele_name, *is_cdata)),
+            bind, ty, is_cdata,..
+        } => Some(write_text(tag, prefix, bind, ty, &ele_name, *is_cdata)),
         _ => None,
     });
 
@@ -24,7 +27,7 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
             ty,
             is_cdata,
             ..
-        } => Some(write_flatten_text(tag, bind, ty, &ele_name, *is_cdata)),
+        } => Some(write_flatten_text(tag, prefix, bind, ty, &ele_name, *is_cdata)),
         _ => None,
     });
 
@@ -59,6 +62,12 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
         _ => None,
     });
 
+    let prefix = if let Some(prefix) = prefix {
+        quote!(Some(#prefix))
+    } else {
+        quote!(None)
+    };
+
     let write_element_end = if is_leaf_element {
         quote! { writer.write_element_end_empty()?; }
     } else if is_text_element {
@@ -71,7 +80,7 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
                 writer.write_element_end_open()?;
                 #( #write_child )*
                 #( #write_flatten_text )*
-                writer.write_element_end_close(#tag)?;
+                writer.write_element_end_close(#prefix, #tag)?;
             }
         }
     };
@@ -79,8 +88,9 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
     quote! {
         strong_xml::log_start_writing!(#ele_name);
 
-        writer.write_element_start(#tag)?;
-
+        writer.write_element_start(#prefix, #tag)?;
+        
+       #write_namespaces 
         #( #write_attributes )*
 
         #write_element_end
@@ -89,8 +99,16 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
     }
 }
 
-fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+
+
+fn write_attrs(tag: &LitStr, prefix: &Option<LitStr>, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let to_str = to_str(ty);
+
+    let prefix = if let Some(prefix) = prefix {
+        quote!(Some(#prefix))
+    } else {
+        quote!(None)
+    };
 
     if ty.is_vec() {
         panic!("`attr` attribute doesn't support Vec.");
@@ -99,7 +117,7 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) ->
             strong_xml::log_start_writing_field!(#ele_name, #name);
 
             if let Some(__value) = #name {
-                writer.write_attribute(#tag, #to_str)?;
+                writer.write_attribute(#prefix, #tag, #to_str)?;
             }
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
@@ -109,11 +127,25 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) ->
             strong_xml::log_start_writing_field!(#ele_name, #name);
 
             let __value = #name;
-            writer.write_attribute(#tag, #to_str)?;
+            writer.write_attribute(#prefix, #tag, #to_str)?;
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         }
     }
+}
+
+
+fn write_namespaces(namespaces: &Namespaces) -> TokenStream {
+    namespaces.iter().map(|(prefix, ns)|{
+        let prefix = if let Some(prefix) = prefix {
+            quote!(Some(#prefix))
+        } else {
+            quote!(None)
+        };
+        quote! {
+            writer.write_namespace_declaration(#prefix, #ns)?;
+        }
+    }).collect()
 }
 
 fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
@@ -139,7 +171,7 @@ fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
         Type::T(_) => quote! {
             strong_xml::log_start_writing_field!(#ele_name, #name);
 
-            &#name.to_writer(&mut writer)?;
+            #name.to_writer(&mut writer)?;
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         },
@@ -149,6 +181,7 @@ fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
 
 fn write_text(
     tag: &LitStr,
+    prefix: &Option<LitStr>,
     name: &Ident,
     ty: &Type,
     ele_name: &TokenStream,
@@ -159,6 +192,12 @@ fn write_text(
         quote!(write_cdata_text)
     } else {
         quote!(write_text)
+    };
+
+    let prefix = if let Some(prefix) = prefix {
+        quote!(Some(#prefix))
+    } else {
+        quote!(None)
     };
 
     quote! {
@@ -172,12 +211,13 @@ fn write_text(
 
         strong_xml::log_finish_writing_field!(#ele_name, #name);
 
-        writer.write_element_end_close(#tag)?;
+        writer.write_element_end_close(#prefix, #tag)?;
     }
 }
 
 fn write_flatten_text(
     tag: &LitStr,
+    prefix: &Option<LitStr>,
     name: &Ident,
     ty: &Type,
     ele_name: &TokenStream,
@@ -185,12 +225,18 @@ fn write_flatten_text(
 ) -> TokenStream {
     let to_str = to_str(ty);
 
+    let prefix = if let Some(prefix) = prefix {
+        quote!(Some(#prefix))
+    } else {
+        quote!(None)
+    };
+
     if ty.is_vec() {
         quote! {
             strong_xml::log_finish_writing_field!(#ele_name, #name);
 
             for __value in #name {
-                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+                writer.write_flatten_text(#prefix, #tag, #to_str, #is_cdata)?;
             }
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
@@ -200,7 +246,7 @@ fn write_flatten_text(
             strong_xml::log_finish_writing_field!(#ele_name, #name);
 
             if let Some(__value) = #name {
-                writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+                writer.write_flatten_text(#prefix, #tag, #to_str, #is_cdata)?;
             }
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
@@ -210,7 +256,7 @@ fn write_flatten_text(
             strong_xml::log_finish_writing_field!(#ele_name, #name);
 
             let __value = &#name;
-            writer.write_flatten_text(#tag, #to_str, #is_cdata)?;
+            writer.write_flatten_text(#prefix, #tag, #to_str, #is_cdata)?;
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         }
