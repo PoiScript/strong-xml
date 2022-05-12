@@ -13,46 +13,33 @@ pub fn impl_read(element: Element) -> TokenStream {
             name: ele_name,
             variants,
         } => {
-            let make_prefix = |prefix: &Option<LitStr>| {
-                if let Some(lit) = prefix {
-                    quote!(#lit)
-                } else {
-                    quote!("")
-                }
-            };
-
-            let (prefixes, locals): (Vec<_>, Vec<_>) = variants
+            
+            let tags = variants
                 .iter()
                 .map(|variant| match variant {
-                    Fields::Newtype { prefix, tags, .. } => {
-                        (vec![make_prefix(prefix); tags.len()], tags.clone())
-                    }
-                    Fields::Named { prefix, tag, .. } => {
-                        (vec![make_prefix(prefix)], vec![tag.clone()])
-                    }
-                })
-                .unzip();
+                    Fields::Newtype { tags, .. } => tags.iter().cloned().collect(),
+                    Fields::Named { tag, .. } => vec!(tag.clone())
+                });
 
             let read = variants.iter().map(|variant| match variant {
                 Fields::Named {
                     tag,
                     name,
                     fields,
-                    prefix,
                     namespaces,
-                } => named::read(&prefix, &tag, quote!(#ele_name::#name), &fields),
+                } => named::read(&tag, quote!(#ele_name::#name), &fields),
                 Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#ele_name::#name)),
             });
 
             quote! {
                 while let Some(tag) = reader.find_element_start(None)? {
                     match tag {
-                        #( #( (#prefixes, #locals) )|* => { #read } )*
-                        (prefix, local) => {
-                            strong_xml::log_skip_element!(#ele_name, prefix, local);
+                        #( #( #tags )|* => { #read } )*
+                        tag => {
+                            strong_xml::log_skip_element!(#ele_name, tag);
                             // skip the start tag
                             reader.next();
-                            reader.read_to_end(prefix, local)?;
+                            reader.read_to_end(tag)?;
                         },
                     }
                 }
@@ -66,9 +53,8 @@ pub fn impl_read(element: Element) -> TokenStream {
                 tag,
                 name,
                 fields,
-                prefix,
                 namespaces,
-            } => named::read(&prefix, &tag, quote!(#name), &fields),
+            } => named::read(&tag, quote!(#name), &fields),
             Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#name)),
         },
     }

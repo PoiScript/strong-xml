@@ -24,13 +24,8 @@ impl<W: Write> XmlWriter<W> {
         self.inner
     }
 
-    pub fn write_element_start(&mut self, prefix: Option<&str>, tag: &str) -> Result<()> {
-        self.set_prefixes.push(BTreeSet::new());
-        if let Some(prefix) = prefix {
-            write!(self.inner, "<{}:{}", prefix, tag)
-        } else {
-            write!(self.inner, "<{}", tag)
-        }
+    pub fn write_element_start(&mut self, tag: &str) -> Result<()> {
+        write!(self.inner, "<{}", tag)
     }
 
     pub fn write_namespace_declaration(
@@ -39,7 +34,7 @@ impl<W: Write> XmlWriter<W> {
         ns: &'static str,
     ) -> Result<()> {
         if !self.is_prefix_defined_as(&prefix, ns) {
-            self.push_changed_namespace(prefix, ns)?;
+            //self.push_changed_namespace(prefix, ns)?;
             if let Some(prefix) = prefix {
                 write!(self.inner, r#" xmlns:{}="{}""#, prefix, xml_escape(ns))
             } else {
@@ -50,12 +45,8 @@ impl<W: Write> XmlWriter<W> {
         }
     }
 
-    pub fn write_attribute(&mut self, prefix: Option<&str>, key: &str, value: &str) -> Result<()> {
-        if let Some(prefix) = prefix {
-            write!(self.inner, r#" {}:{}="{}""#, prefix, key, xml_escape(value))
-        } else {
-            write!(self.inner, r#" {}="{}""#, key, xml_escape(value))
-        }
+    pub fn write_attribute(&mut self, key: &str, value: &str) -> Result<()> {
+        write!(self.inner, r#" {}="{}""#, key, xml_escape(value))
     }
 
     pub fn write_text(&mut self, content: &str) -> Result<()> {
@@ -72,33 +63,28 @@ impl<W: Write> XmlWriter<W> {
 
     pub fn write_flatten_text(
         &mut self,
-        prefix: Option<&str>,
         tag: &str,
         content: &str,
         is_cdata: bool,
     ) -> Result<()> {
-        self.write_element_start(prefix, tag)?;
+        self.write_element_start(tag)?;
         self.write_element_end_open()?;
         if is_cdata {
             self.write_cdata_text(content)?;
         } else {
             self.write_text(content)?;
         }
-        self.write_element_end_close(prefix, tag)?;
+        self.write_element_end_close(tag)?;
         Ok(())
     }
 
-    pub fn write_element_end_close(&mut self, prefix: Option<&str>, tag: &str) -> Result<()> {
-        self.pop_changed_namespaces()?;
-        if let Some(prefix) = prefix {
-            write!(self.inner, "</{}:{}>", prefix, tag)
-        } else {
-            write!(self.inner, "</{}>", tag)
-        }
+    pub fn write_element_end_close(&mut self, tag: &str) -> Result<()> {
+        //self.pop_changed_namespaces()?;
+        write!(self.inner, "</{}>", tag)
     }
 
     pub fn write_element_end_empty(&mut self) -> Result<()> {
-        self.pop_changed_namespaces()?;
+        //self.pop_changed_namespaces()?;
         write!(self.inner, "/>")
     }
 

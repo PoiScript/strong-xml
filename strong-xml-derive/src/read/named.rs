@@ -2,11 +2,10 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, LitStr};
 
-use crate::types::{Field, Type};
+use crate::types::{Field, Type, QName};
 
 pub fn read(
-    prefix: &Option<LitStr>,
-    local: &LitStr,
+    tag: &QName,
     ele_name: TokenStream,
     fields: &[Field],
 ) -> TokenStream {
@@ -46,11 +45,10 @@ pub fn read(
         Field::Attribute {
             bind,
             ty,
-            prefix,
             tag,
             name,
             ..
-        } => Some(read_attrs(&prefix, &tag, &bind, &name, &ty, &ele_name)),
+        } => Some(read_attrs(&tag, &bind, &name, &ty, &ele_name)),
         _ => None,
     });
 
@@ -61,20 +59,7 @@ pub fn read(
             tags,
             name,
             ..
-        } => {
-            let tags: Vec<_> = tags.iter().map(|tag|{
-                if tag.value().matches(":").count() > 1 {
-                    panic!("child cannot have more than one colon in name.")
-                } 
-                match tag.value().split_once(':') {
-                    Some(("", local)) => (None, local.to_owned()),
-                    Some((prefix, local)) => (Some(prefix.to_owned()), local.to_owned()),
-                    None => (None, tag.value())
-                }
-            }).collect();
-
-            Some(read_children(&tags[..], bind, name, ty, &ele_name))
-        }
+        } => Some(read_children(&tags, bind, name, ty, &ele_name)),
         _ => None,
     });
 
@@ -82,17 +67,16 @@ pub fn read(
         Field::FlattenText {
             bind,
             ty,
-            prefix,
             tag,
             name,
             ..
-        } => Some(read_flatten_text(prefix, tag, bind, name, ty, &ele_name)),
+        } => Some(read_flatten_text(tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
     let read_text_fields = fields.iter().filter_map(|field| match field {
         Field::Text { bind, ty, name, .. } => {
-            Some(read_text(&prefix, &local, bind, name, ty, &ele_name))
+            Some(read_text(&tag, bind, name, ty, &ele_name))
         }
         _ => None,
     });
@@ -111,12 +95,6 @@ pub fn read(
         return Ok(__res);
     };
 
-    let prefix = if let Some(lit) = prefix {
-        quote!(#lit)
-    } else {
-        quote!("")
-    };
-
     let read_content = if is_text_element {
         quote! {
             #( #read_text_fields )*
@@ -128,15 +106,15 @@ pub fn read(
                 #return_fields
             }
 
-            while let Some((__prefix, __local)) = reader.find_element_start(Some((#prefix, #local)))? {
-                match (__prefix, __local) {
+            while let Some((__name)) = reader.find_element_start(Some(#tag))? {
+                match __name {
                     #( #read_child_fields, )*
                     #( #read_flatten_text_fields, )*
-                    (prefix, local) => {
-                        strong_xml::log_skip_element!(#ele_name, prefix, local);
+                    tag => {
+                        strong_xml::log_skip_element!(#ele_name, tag);
                         // skip the start tag
                         reader.next();
-                        reader.read_to_end(prefix, local)?;
+                        reader.read_to_end(tag)?;
                     },
                 }
             }
@@ -150,13 +128,13 @@ pub fn read(
 
         #( #init_fields )*
 
-        reader.read_till_element_start(#prefix, #local)?;
+        reader.read_till_element_start(#tag)?;
 
-        while let Some((__prefix, __key, __value)) = reader.find_attribute()? {
-            match (__prefix, __key) {
+        while let Some((__key, __value)) = reader.find_attribute()? {
+            match __key {
                 #( #read_attr_fields, )*
-                (prefix, key) => {
-                    strong_xml::log_skip_attribute!(#ele_name, prefix, key);
+                key => {
+                    strong_xml::log_skip_attribute!(#ele_name, key);
                 },
             }
         }
@@ -195,8 +173,7 @@ fn return_value(
 }
 
 fn read_attrs(
-    prefix: &Option<LitStr>,
-    local: &LitStr,
+    tag: &QName,
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -204,17 +181,11 @@ fn read_attrs(
 ) -> TokenStream {
     let from_str = from_str(ty);
 
-    let prefix = if let Some(lit) = prefix {
-        quote!(#lit)
-    } else {
-        quote!("")
-    };
-
     if ty.is_vec() {
         panic!("`attr` attribute doesn't support Vec.");
     } else {
         quote! {
-            (#prefix, #local) => {
+            #tag => {
                 strong_xml::log_start_reading_field!(#ele_name, #name);
 
                 #bind = Some(#from_str);
@@ -226,8 +197,7 @@ fn read_attrs(
 }
 
 fn read_text(
-    prefix: &Option<LitStr>,
-    local: &LitStr,
+    tag: &QName,
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -235,19 +205,13 @@ fn read_text(
 ) -> TokenStream {
     let from_str = from_str(ty);
     
-    let prefix = if let Some(lit) = prefix {
-        quote!(#lit)
-    } else {
-        quote!("")
-    };
-
     if ty.is_vec() {
         panic!("`text` attribute doesn't support Vec.");
     } else {
         quote! {
             strong_xml::log_start_reading_field!(#ele_name, #name);
 
-            let __value = reader.read_text(#prefix, #local)?;
+            let __value = reader.read_text(#tag)?;
             #bind = Some(#from_str);
 
             strong_xml::log_finish_reading_field!(#ele_name, #name);
@@ -256,7 +220,7 @@ fn read_text(
 }
 
 fn read_children(
-    tags: &[(Option<String>, String)],
+    tags: &[QName],
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -272,14 +236,8 @@ fn read_children(
         _ => panic!("`child` attribute only supports Vec<T>, Option<T> and T."),
     };
 
-    let (prefixes, locals): (Vec<_>, Vec<_>) = tags.iter().cloned().unzip();
-    let prefixes = prefixes.iter().map(|prefix| if let Some(lit) = prefix {
-        quote!(#lit)
-    } else {
-        quote!("")
-    });
     quote! {
-        #( (#prefixes, #locals) )|* => {
+        #( #tags )|* => {
             strong_xml::log_start_reading_field!(#ele_name, #name);
 
             #from_reader
@@ -290,8 +248,7 @@ fn read_children(
 }
 
 fn read_flatten_text(
-    prefix: &Option<LitStr>,
-    local: &LitStr,
+    tag: &QName,
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -299,26 +256,20 @@ fn read_flatten_text(
 ) -> TokenStream {
     let from_str = from_str(ty);
 
-    let prefix = if let Some(lit) = prefix {
-        quote!(#lit)
-    } else {
-        quote!("")
-    };
-
     let read_text = if ty.is_vec() {
         quote! {
-            let __value = reader.read_text(#prefix, #local)?;
+            let __value = reader.read_text(#tag)?;
             #bind.push(#from_str);
         }
     } else {
         quote! {
-            let __value = reader.read_text(#prefix, #local)?;
+            let __value = reader.read_text(#tag)?;
             #bind = Some(#from_str);
         }
     };
 
     quote! {
-        (#prefix, #local) => {
+        #tag => {
             // skip element start
             reader.next();
 

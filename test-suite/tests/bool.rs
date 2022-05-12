@@ -7,6 +7,7 @@ struct Attr {
     attr: Option<bool>,
 }
 
+
 #[derive(XmlRead, XmlWrite, PartialEq, Debug)]
 #[xml(tag = "text")]
 struct FlattenText {

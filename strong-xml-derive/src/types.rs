@@ -1,7 +1,7 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, fmt::Display};
 
-use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use proc_macro2::{TokenStream, Span};
+use quote::{format_ident, quote, ToTokens};
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;
@@ -32,10 +32,9 @@ pub enum Fields {
     /// }
     /// ```
     Named {
-        tag: LitStr,
+        tag: QName,
         name: Ident,
         fields: Vec<Field>,
-        prefix: Option<LitStr>,
         namespaces: Namespaces,
     },
     /// Newtype struct or newtype variant
@@ -52,10 +51,9 @@ pub enum Fields {
     /// }
     /// ```
     Newtype {
-        tags: Vec<LitStr>,
+        tags: Vec<QName>,
         name: Ident,
         ty: Type,
-        prefix: Option<LitStr>,
         namespaces: Namespaces,
     },
 }
@@ -73,9 +71,8 @@ pub enum Field {
         name: TokenStream,
         bind: Ident,
         ty: Type,
-        tag: LitStr,
+        tag: QName,
         default: bool,
-        prefix: Option<LitStr>,
     },
     /// Child(ren) Field
     ///
@@ -90,8 +87,7 @@ pub enum Field {
         bind: Ident,
         ty: Type,
         default: bool,
-        tags: Vec<LitStr>,
-        prefix: Option<LitStr>,
+        tags: Vec<QName>,
     },
     /// Text Field
     ///
@@ -120,8 +116,7 @@ pub enum Field {
         bind: Ident,
         ty: Type,
         default: bool,
-        prefix: Option<LitStr>,
-        tag: LitStr,
+        tag: QName,
         is_cdata: bool,
     },
 }
@@ -145,6 +140,12 @@ pub enum Type {
     VecBool,
     // Option<bool>
     OptionBool,
+}
+
+#[derive(Clone)]
+pub enum QName {
+    Prefixed(LitStr),
+    Unprefixed(LitStr)
 }
 
 impl Element {
@@ -172,23 +173,14 @@ impl Fields {
         // Finding `tag` attribute
         let mut tags = Vec::new();
         let mut namespaces: Namespaces = BTreeMap::default();
-        let mut prefix = None;
 
         for meta in attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
                 NestedMeta::Meta(NameValue(m)) if m.path.is_ident("tag") => {
                     if let Str(lit) = m.lit {
-                        tags.push(lit);
-                    } else {
-                        panic!("Expected a string literal.");
-                    }
-                }
-                NestedMeta::Meta(NameValue(m)) if m.path.is_ident("prefix") => {
-                    if let Str(lit) = m.lit {
-                        if prefix.is_some() {
-                            panic!("Duplicate `ns` attribute.");
-                        } else {
-                            prefix = Some(lit);
+                        match QName::parse(lit) {
+                            Ok(q) => tags.push(q),
+                            Err(e) => panic!("{}", e),
                         }
                     } else {
                         panic!("Expected a string literal.");
@@ -240,7 +232,6 @@ impl Fields {
             syn::Fields::Unit => Fields::Named {
                 name,
                 tag: tags.remove(0),
-                prefix,
                 namespaces,
                 fields: Vec::new(),
             },
@@ -254,7 +245,6 @@ impl Fields {
                             name,
                             tags,
                             ty: Type::parse(field.ty),
-                            prefix,
                             namespaces,
                         };
                     }
@@ -264,7 +254,6 @@ impl Fields {
                     name,
                     tag: tags.remove(0),
                     namespaces,
-                    prefix,
                     fields: fields
                         .unnamed
                         .into_iter()
@@ -281,7 +270,6 @@ impl Fields {
                 name,
                 tag: tags.remove(0),
                 namespaces,
-                prefix,
                 fields: fields
                     .into_iter()
                     .map(|field| {
@@ -303,7 +291,6 @@ impl Field {
         let mut is_text = false;
         let mut flatten_text_tag = None;
         let mut is_cdata = false;
-        let mut prefix = None;
 
         for meta in field.attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
@@ -327,7 +314,10 @@ impl Field {
                         } else if flatten_text_tag.is_some() {
                             panic!("`attr` attribute and `flatten_text` attribute is disjoint.");
                         } else {
-                            attr_tag = Some(lit);
+                            match QName::parse(lit) {
+                                Ok(q) => attr_tag = Some(q),
+                                Err(e) => panic!("{}", e),
+                            }
                         }
                     } else {
                         panic!("Expected a string literal.");
@@ -368,7 +358,10 @@ impl Field {
                         } else if flatten_text_tag.is_some() {
                             panic!("`child` attribute and `flatten_text` attribute is disjoint.");
                         } else {
-                            child_tags.push(lit);
+                            match QName::parse(lit) {
+                                Ok(q) => child_tags.push(q),
+                                Err(e) => panic!("{}", e),
+                            }
                         }
                     } else {
                         panic!("Expected a string literal.");
@@ -385,22 +378,10 @@ impl Field {
                         } else if flatten_text_tag.is_some() {
                             panic!("Duplicate `flatten_text` attribute.");
                         } else {
-                            flatten_text_tag = Some(lit);
-                        }
-                    } else {
-                        panic!("Expected a string literal.");
-                    }
-                }
-                NestedMeta::Meta(NameValue(m)) if m.path.is_ident("prefix") => {
-                    if let Str(lit) = m.lit {
-                        if is_text {
-                            panic!("`prefix` attribute and `text` attribute is disjoint.");
-                        } else if flatten_text_tag.is_some() {
-                            panic!("`prefix` attribute and `flatten_text` attribute is disjoint.");
-                        } else if prefix.is_some() {
-                            panic!("Duplicate `prefix` attribute.");
-                        } else {
-                            prefix = Some(lit);
+                            match QName::parse(lit) {
+                                Ok(q) => flatten_text_tag = Some(q),
+                                Err(e) => panic!("{}", e),
+                            }
                         }
                     } else {
                         panic!("Expected a string literal.");
@@ -424,7 +405,6 @@ impl Field {
                 bind,
                 ty: Type::parse(field.ty),
                 tag,
-                prefix,
                 default,
             }
         } else if !child_tags.is_empty() {
@@ -433,7 +413,6 @@ impl Field {
                 bind,
                 ty: Type::parse(field.ty),
                 default,
-                prefix,
                 tags: child_tags,
             }
         } else if is_text {
@@ -449,7 +428,6 @@ impl Field {
                 bind,
                 ty: Type::parse(field.ty),
                 default,
-                prefix,
                 tag,
                 is_cdata,
             }
@@ -566,6 +544,70 @@ impl Type {
         }
     }
 }
+use std::io::{Result, Error, ErrorKind};
+
+impl QName {
+    pub fn parse(name: LitStr) -> Result<QName> {
+        let space_count = name.value().matches(' ').count();
+        if space_count > 0 {
+             return Err(Error::new(
+                ErrorKind::Other,
+                "QName can not contain spaces",
+            ))
+        }
+
+        let colon_count = name.value().matches(':').count();
+        match colon_count {
+            0 => Ok(QName::Unprefixed(name)),
+            1 => Ok(QName::Prefixed(name)),
+            _ => Err(Error::new(
+                ErrorKind::Other,
+                "QName can only have a max of 1 colon",
+            )),
+        }
+    }
+
+    pub fn prefix(&self) -> Option<String> {
+        let name = self.to_string();
+        if let Some((prefix, _)) = name.split_once(':') {
+            Some(prefix.to_owned())
+        } else {
+            None
+        }
+    }
+
+    pub fn local(&self) -> String {
+        let name = self.to_string();
+        if let Some((_, local)) = name.split_once(':') {
+            local.to_owned()
+        } else {
+            name
+        }
+    }
+}
+
+impl ToString for QName {
+    fn to_string(&self) -> String {
+        match self {
+            QName::Prefixed(tag) |
+            QName::Unprefixed(tag) => {
+                tag.value()
+            }
+        }
+    }
+}
+
+impl ToTokens for QName {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            QName::Prefixed(tag) |
+            QName::Unprefixed(tag) => {
+                tag.to_tokens(tokens)
+            }
+        }
+    }
+}
+
 
 fn get_xml_meta(attr: Attribute) -> Option<Vec<NestedMeta>> {
     if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "xml" {

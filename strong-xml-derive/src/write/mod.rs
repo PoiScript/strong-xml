@@ -30,11 +30,9 @@ pub fn impl_write(element: Element) -> TokenStream {
                     tag,
                     name,
                     fields,
-                    prefix,
                     namespaces,
                 } => named::write(
                     tag,
-                    prefix,
                     quote!( #ele_name::#name ),
                     &fields,
                     &namespaces,
@@ -57,7 +55,6 @@ pub fn impl_write(element: Element) -> TokenStream {
                 tag,
                 name,
                 fields,
-                prefix,
                 namespaces,
             } => {
                 let bindings = fields.iter().map(|field| match field {
@@ -67,7 +64,7 @@ pub fn impl_write(element: Element) -> TokenStream {
                     | Field::FlattenText { bind, name, .. } => quote!( #name: #bind ),
                 });
 
-                let read = named::write(&tag, &prefix, quote!(#name), &fields, &namespaces);
+                let read = named::write(&tag, quote!(#name), &fields, &namespaces);
 
                 quote! {
                     let #ele_name { #( #bindings ),* } = self;

@@ -58,10 +58,10 @@ macro_rules! make_tag {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_skip_attribute {
-    ($element:path, $prefix:ident, $local:ident) => {
+    ($element:path, $key:ident) => {
         $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip attribute `{}`"),
-            $crate::make_tag!($prefix, $local)
+            $key
         );
     };
 }
@@ -69,10 +69,10 @@ macro_rules! log_skip_attribute {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_skip_element {
-    ($element:path, $prefix:ident, $local:ident) => {
+    ($element:path, $name:ident) => {
         $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip element `{}`"),
-            $crate::make_tag!($prefix, $local)
+            $name
         );
     };
 }
