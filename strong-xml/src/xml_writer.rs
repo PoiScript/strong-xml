@@ -1,5 +1,4 @@
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Result;
 use std::io::Write;
 
@@ -25,6 +24,7 @@ impl<W: Write> XmlWriter<W> {
     }
 
     pub fn write_element_start(&mut self, tag: &str) -> Result<()> {
+        self.set_prefixes.push(BTreeSet::new());
         write!(self.inner, "<{}", tag)
     }
 
@@ -34,7 +34,7 @@ impl<W: Write> XmlWriter<W> {
         ns: &'static str,
     ) -> Result<()> {
         if !self.is_prefix_defined_as(&prefix, ns) {
-            //self.push_changed_namespace(prefix, ns)?;
+            self.push_changed_namespace(prefix, ns)?;
             if let Some(prefix) = prefix {
                 write!(self.inner, r#" xmlns:{}="{}""#, prefix, xml_escape(ns))
             } else {
@@ -74,12 +74,12 @@ impl<W: Write> XmlWriter<W> {
     }
 
     pub fn write_element_end_close(&mut self, tag: &str) -> Result<()> {
-        //self.pop_changed_namespaces()?;
+        self.pop_changed_namespaces()?;
         write!(self.inner, "</{}>", tag)
     }
 
     pub fn write_element_end_empty(&mut self) -> Result<()> {
-        //self.pop_changed_namespaces()?;
+        self.pop_changed_namespaces()?;
         write!(self.inner, "/>")
     }
 

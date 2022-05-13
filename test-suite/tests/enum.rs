@@ -23,8 +23,6 @@ enum AB {
     #[xml(tag = "b")]
     B(B),
 }
-// Recursive expansion of XmlRead! macro
-// ======================================
 
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 enum CD {

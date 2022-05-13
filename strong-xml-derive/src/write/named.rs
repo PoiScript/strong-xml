@@ -128,7 +128,7 @@ fn write_namespaces(namespaces: &NamespaceDefs) -> TokenStream {
     namespaces
         .values()
         .map(|namespace_def| {
-            let namespace = namespace_def.prefix();
+            let namespace = namespace_def.namespace();
 
             let prefix = if let Some(prefix) = namespace_def.prefix() {
                 quote!(Some(#prefix))

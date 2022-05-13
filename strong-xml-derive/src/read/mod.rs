@@ -5,7 +5,6 @@ use crate::types::{Element, Fields};
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::LitStr;
 
 pub fn impl_read(element: Element) -> TokenStream {
     match element {
@@ -14,7 +13,7 @@ pub fn impl_read(element: Element) -> TokenStream {
             variants,
         } => {
             let tags = variants.iter().map(|variant| match variant {
-                Fields::Newtype { tags, .. } => tags.iter().cloned().collect(),
+                Fields::Newtype { tags, .. } => tags.clone(),
                 Fields::Named { tag, .. } => vec![tag.clone()],
             });
 

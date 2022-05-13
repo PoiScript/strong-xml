@@ -44,18 +44,6 @@ macro_rules! log_finish_reading_field {
 
 #[macro_export]
 #[doc(hidden)]
-macro_rules! make_tag {
-    ($prefix:ident, $local:ident) => {
-        if $prefix.is_empty() {
-            $local.to_owned()
-        } else {
-            ($prefix.to_owned() + ":" + $local)
-        }
-    };
-}
-
-#[macro_export]
-#[doc(hidden)]
 macro_rules! log_skip_attribute {
     ($element:path, $key:ident) => {
         $crate::lib::log::info!(
@@ -68,10 +56,10 @@ macro_rules! log_skip_attribute {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! log_skip_element {
-    ($element:path, $name:ident) => {
+    ($element:path, $tag:ident) => {
         $crate::lib::log::info!(
             concat!("[", stringify!($element), "] Skip element `{}`"),
-            $name
+            $tag
         );
     };
 }

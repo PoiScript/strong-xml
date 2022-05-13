@@ -3,7 +3,7 @@ use strong_xml::{XmlRead, XmlResult, XmlWrite};
 #[test]
 fn test() -> XmlResult<()> {
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-    #[xml(tag = "nested", prefix = "n", ns = "n: http://www.example.com")]
+    #[xml(tag = "n:nested", ns="n: http://www.example.com")]
     struct Nested {
         #[xml(child = "nested")]
         contents: Vec<Nested>,
@@ -33,22 +33,21 @@ fn test() -> XmlResult<()> {
 fn test2() -> XmlResult<()> {
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
     #[xml(
-        tag = "nested",
-        prefix = "n",
-        ns = "n: http://www.example.com",
-        ns = "n2: http://www.example.com"
+        tag = "n:nested",
+        ns="n: http://www.example.com",
+        ns="n2: http://www.example.com"
     )]
     struct Nested {
-        #[xml(child = "nested", prefix = "n")]
+        #[xml(child = "n:nested")]
         nested: Vec<Nested>,
-        #[xml(child = "nested2", prefix = "n2")]
+        #[xml(child = "n2:nested2")]
         nested2: Nested2,
     }
 
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-    #[xml(tag = "nested2", prefix = "n2", ns = "n2: http://www.example.com")]
+    #[xml(tag = "n2:nested2", ns="n2: http://www.example.com")]
     struct Nested2 {
-        #[xml(attr = "nest", prefix = "n2")]
+        #[xml(attr = "n2:nest")]
         value: String,
     }
 
@@ -79,27 +78,36 @@ fn test2() -> XmlResult<()> {
     */
 
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-    #[xml(tag = "tag", prefix = "a", ns = "a: http://www.example.com")]
+    #[xml(tag = "a:tag", ns = "a: http://www.example.com")]
     struct A {
         #[xml(text)]
         value: String,
     }
 
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-    #[xml(tag = "tag", prefix = "b", ns = "b: http://www.example.com/1")]
+    #[xml(tag = "b:tag", ns = "b: http://www.example.com/1")]
     struct B {
         #[xml(text)]
         value: String,
     }
 
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
-    #[xml(tag = "root", prefix = "a", ns = "a: ns_a", ns = "b: ns_b")]
+    #[xml(tag = "a:root", ns = "a: ns_a", ns = "b: ns_b")]
     struct C {
-        #[xml(child = "tag", prefix = "a")]
+        #[xml(child = "a:tag")]
         a: A,
-        #[xml(child = "tag", prefix = "b")]
+        #[xml(child = "b:tag")]
         b: B,
     }
+
+    println!("{}", C {
+        a: A {
+            value: "hello".into()
+        },
+        b: B {
+            value: "world".into()
+        }
+    }.to_string()?);
 
     assert_eq!(
         C {

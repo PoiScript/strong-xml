@@ -151,23 +151,21 @@ impl<'a> XmlReader<'a> {
         while let Some(token) = self.tokenizer.peek() {
             match token {
                 Ok(Token::ElementStart { span, .. }) => {
-                    let name = &span.as_str()[1..];
-                    return Ok(Some(name));
+                    return Ok(Some(&span.as_str()[1..]));
                 }
                 Ok(Token::ElementEnd {
                     end: ElementEnd::Close(_, _),
                     span,
                 }) if end_tag.is_some() => {
                     let end_tag = end_tag.unwrap();
-
-                    let name = &span.as_str()[2..span.len() - 1];
-                    if end_tag == name {
+                    let tag = &span[2..span.len() - 1];// remove `</` and `>`
+                    if tag == end_tag {
                         self.next();
                         return Ok(None);
                     } else {
                         return Err(XmlError::TagMismatch {
                             expected: end_tag.to_string(),
-                            found: name.to_string(),
+                            found: tag.to_string(),
                         });
                     }
                 }
@@ -182,6 +180,7 @@ impl<'a> XmlReader<'a> {
                 }
             }
         }
+
         Err(XmlError::UnexpectedEof)
     }
 

@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, LitStr};
+use syn::Ident;
 
 use crate::types::{Field, QName, Type};
 
@@ -55,7 +55,7 @@ pub fn read(tag: &QName, ele_name: TokenStream, fields: &[Field]) -> TokenStream
             tags,
             name,
             ..
-        } => Some(read_children(&tags, bind, name, ty, &ele_name)),
+        } => Some(read_children(tags, bind, name, ty, &ele_name)),
         _ => None,
     });
 
@@ -100,8 +100,8 @@ pub fn read(tag: &QName, ele_name: TokenStream, fields: &[Field]) -> TokenStream
                 #return_fields
             }
 
-            while let Some((__name)) = reader.find_element_start(Some(#tag))? {
-                match __name {
+            while let Some(__tag) = reader.find_element_start(Some(#tag))? {
+                match __tag {
                     #( #read_child_fields, )*
                     #( #read_flatten_text_fields, )*
                     tag => {
