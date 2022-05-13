@@ -36,19 +36,7 @@ impl<'a> XmlReader<'a> {
     }
 
     #[inline]
-    fn make_name<'r>(prefix: &'r str, local: &'r str) -> Cow<'r, str> {
-        if prefix.is_empty() {
-            Cow::Borrowed(local)
-        } else {
-            Cow::Owned(prefix.to_owned() + ":" + local)
-        }
-    }
-
-    #[inline]
-    pub fn read_text(
-        &mut self,
-        end_tag: &'a str,
-    ) -> XmlResult<Cow<'a, str>> {
+    pub fn read_text(&mut self, end_tag: &'a str) -> XmlResult<Cow<'a, str>> {
         let mut res = None;
 
         while let Some(token) = self.next() {
@@ -68,12 +56,12 @@ impl<'a> XmlReader<'a> {
                     end: ElementEnd::Close(_, _),
                     span,
                 } => {
-                    if end_tag == &span[2..span.len()-1] {
+                    if end_tag == &span[2..span.len() - 1] {
                         break;
                     } else {
                         return Err(XmlError::TagMismatch {
                             expected: end_tag.to_owned(),
-                            found: span[2..span.len()-1].to_owned()
+                            found: span[2..span.len() - 1].to_owned(),
                         });
                     }
                 }
@@ -124,11 +112,12 @@ impl<'a> XmlReader<'a> {
                     value,
                     span,
                 }) => {
-                    let length = local.len() + if !prefix.is_empty() {
-                        prefix.len() + 1 
-                    } else {
-                        0
-                    };
+                    let length = local.len()
+                        + if !prefix.is_empty() {
+                            prefix.len() + 1
+                        } else {
+                            0
+                        };
                     let name = &span.as_str()[0..length];
                     let value = Cow::Borrowed(value.as_str());
                     self.next();
@@ -158,10 +147,7 @@ impl<'a> XmlReader<'a> {
     }
 
     #[inline]
-    pub fn find_element_start(
-        &mut self,
-        end_tag: Option<&str>,
-    ) -> XmlResult<Option<&'a str>> {
+    pub fn find_element_start(&mut self, end_tag: Option<&str>) -> XmlResult<Option<&'a str>> {
         while let Some(token) = self.tokenizer.peek() {
             match token {
                 Ok(Token::ElementStart { span, .. }) => {
@@ -170,11 +156,11 @@ impl<'a> XmlReader<'a> {
                 }
                 Ok(Token::ElementEnd {
                     end: ElementEnd::Close(_, _),
-                    span
+                    span,
                 }) if end_tag.is_some() => {
                     let end_tag = end_tag.unwrap();
 
-                    let name = &span.as_str()[2..span.len()-1];
+                    let name = &span.as_str()[2..span.len() - 1];
                     if end_tag == name {
                         self.next();
                         return Ok(None);
@@ -227,7 +213,6 @@ impl<'a> XmlReader<'a> {
         while let Some(token) = self.next() {
             match token? {
                 Token::ElementStart { span, .. } if end_tag == &span.as_str()[1..] => {
-                    let name = &span.as_str()[1..];
                     while let Some(token) = self.next() {
                         match token? {
                             Token::ElementEnd {
@@ -261,7 +246,7 @@ impl<'a> XmlReader<'a> {
                 Token::ElementEnd {
                     end: ElementEnd::Close(_, _),
                     span,
-                } if end_tag == &span[2..span.len()-1] => {
+                } if end_tag == &span[2..span.len() - 1] => {
                     depth -= 1;
                     if depth == 0 {
                         return Ok(());
@@ -294,7 +279,7 @@ fn read_text() -> XmlResult<()> {
     assert!(reader.next().is_some()); // "<parent"
     assert_eq!(reader.read_text("parent")?, "text");
     assert!(reader.next().is_none());
-    
+
     reader = XmlReader::new("<parent attr=\"value\">&quot;&apos;&lt;&gt;&amp;</parent>");
 
     assert!(reader.next().is_some()); // "<parent"
@@ -342,7 +327,7 @@ fn read_till_element_start() -> XmlResult<()> {
     reader.read_till_element_start("tag")?;
     assert!(reader.next().is_some()); // "/>"
     assert!(reader.next().is_none());
-    
+
     reader = XmlReader::new("<parent><skip/><tag/></parent>");
 
     assert!(reader.next().is_some()); // "<parent"
@@ -351,7 +336,6 @@ fn read_till_element_start() -> XmlResult<()> {
     assert!(reader.next().is_some()); // "/>"
     assert!(reader.next().is_some()); // "</parent>"
     assert!(reader.next().is_none());
-    println!("HERE");
 
     reader = XmlReader::new("<parent><skip></skip><tag/></parent>");
 

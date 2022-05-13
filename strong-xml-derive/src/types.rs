@@ -1,12 +1,10 @@
 use std::{collections::BTreeMap, fmt::Display};
 
-use proc_macro2::{TokenStream, Span};
+use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;
-
-pub type Namespaces = BTreeMap<Option<String>, String>;
 
 pub enum Element {
     Struct { name: Ident, fields: Fields },
@@ -35,7 +33,7 @@ pub enum Fields {
         tag: QName,
         name: Ident,
         fields: Vec<Field>,
-        namespaces: Namespaces,
+        namespaces: NamespaceDefs,
     },
     /// Newtype struct or newtype variant
     ///
@@ -54,7 +52,7 @@ pub enum Fields {
         tags: Vec<QName>,
         name: Ident,
         ty: Type,
-        namespaces: Namespaces,
+        namespaces: NamespaceDefs,
     },
 }
 
@@ -88,6 +86,7 @@ pub enum Field {
         ty: Type,
         default: bool,
         tags: Vec<QName>,
+        namespaces: NamespaceDefs,
     },
     /// Text Field
     ///
@@ -145,8 +144,15 @@ pub enum Type {
 #[derive(Clone)]
 pub enum QName {
     Prefixed(LitStr),
-    Unprefixed(LitStr)
+    Unprefixed(LitStr),
 }
+
+pub struct NamespaceDef {
+    prefix: Option<String>,
+    namespace: String,
+}
+
+pub type NamespaceDefs = BTreeMap<Option<String>, NamespaceDef>;
 
 impl Element {
     pub fn parse(input: DeriveInput) -> Element {
@@ -172,7 +178,7 @@ impl Fields {
     pub fn parse(fields: syn::Fields, attrs: Vec<Attribute>, name: Ident) -> Fields {
         // Finding `tag` attribute
         let mut tags = Vec::new();
-        let mut namespaces: Namespaces = BTreeMap::default();
+        let mut namespaces: NamespaceDefs = BTreeMap::default();
 
         for meta in attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
@@ -218,7 +224,7 @@ impl Fields {
                             panic!("prefix cannot start with `xml`");
                         }
                     }
-                    namespaces.insert(prefix, namespace);
+                    namespaces.insert(prefix.clone(), NamespaceDef { prefix, namespace });
                 }
                 _ => (),
             }
@@ -414,6 +420,7 @@ impl Field {
                 ty: Type::parse(field.ty),
                 default,
                 tags: child_tags,
+                namespaces: NamespaceDefs::new(),
             }
         } else if is_text {
             Field::Text {
@@ -544,16 +551,13 @@ impl Type {
         }
     }
 }
-use std::io::{Result, Error, ErrorKind};
+use std::io::{Error, ErrorKind, Result};
 
 impl QName {
     pub fn parse(name: LitStr) -> Result<QName> {
         let space_count = name.value().matches(' ').count();
         if space_count > 0 {
-             return Err(Error::new(
-                ErrorKind::Other,
-                "QName can not contain spaces",
-            ))
+            return Err(Error::new(ErrorKind::Other, "QName can not contain spaces"));
         }
 
         let colon_count = name.value().matches(':').count();
@@ -568,20 +572,19 @@ impl QName {
     }
 
     pub fn prefix(&self) -> Option<String> {
-        let name = self.to_string();
-        if let Some((prefix, _)) = name.split_once(':') {
-            Some(prefix.to_owned())
-        } else {
-            None
+        match self {
+            Self::Prefixed(name) => name
+                .value()
+                .split_once(":")
+                .map(|(prefix, _)| prefix.to_owned()),
+            Self::Unprefixed(_) => None,
         }
     }
 
     pub fn local(&self) -> String {
-        let name = self.to_string();
-        if let Some((_, local)) = name.split_once(':') {
-            local.to_owned()
-        } else {
-            name
+        match self {
+            Self::Prefixed(name) => name.value().split_once(":").unwrap().1.to_owned(),
+            Self::Unprefixed(name) => name.value(),
         }
     }
 }
@@ -589,10 +592,7 @@ impl QName {
 impl ToString for QName {
     fn to_string(&self) -> String {
         match self {
-            QName::Prefixed(tag) |
-            QName::Unprefixed(tag) => {
-                tag.value()
-            }
+            QName::Prefixed(tag) | QName::Unprefixed(tag) => tag.value(),
         }
     }
 }
@@ -600,14 +600,20 @@ impl ToString for QName {
 impl ToTokens for QName {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            QName::Prefixed(tag) |
-            QName::Unprefixed(tag) => {
-                tag.to_tokens(tokens)
-            }
+            QName::Prefixed(tag) | QName::Unprefixed(tag) => tag.to_tokens(tokens),
         }
     }
 }
 
+impl NamespaceDef {
+    pub fn prefix(&self) -> Option<&str> {
+        self.prefix.as_deref()
+    }
+
+    pub fn namespace(&self) -> &str {
+        &self.namespace
+    }
+}
 
 fn get_xml_meta(attr: Attribute) -> Option<Vec<NestedMeta>> {
     if attr.path.segments.len() == 1 && attr.path.segments[0].ident == "xml" {

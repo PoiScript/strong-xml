@@ -2,10 +2,14 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
-use crate::types::{Field, Type, Namespaces, QName};
+use crate::types::{Field, NamespaceDef, NamespaceDefs, QName, Type};
 
-pub fn write(tag: &QName, ele_name: TokenStream, fields: &[Field], namespaces: &Namespaces) -> TokenStream {
-    
+pub fn write(
+    tag: &QName,
+    ele_name: TokenStream,
+    fields: &[Field],
+    namespaces: &NamespaceDefs,
+) -> TokenStream {
     let write_namespaces = write_namespaces(namespaces);
 
     let write_attributes = fields.iter().filter_map(|field| match field {
@@ -15,7 +19,7 @@ pub fn write(tag: &QName, ele_name: TokenStream, fields: &[Field], namespaces: &
 
     let write_text = fields.iter().filter_map(|field| match field {
         Field::Text {
-            bind, ty, is_cdata,..
+            bind, ty, is_cdata, ..
         } => Some(write_text(tag, bind, ty, &ele_name, *is_cdata)),
         _ => None,
     });
@@ -83,8 +87,8 @@ pub fn write(tag: &QName, ele_name: TokenStream, fields: &[Field], namespaces: &
         strong_xml::log_start_writing!(#ele_name);
 
         writer.write_element_start(#tag)?;
-        
-       #write_namespaces 
+
+       #write_namespaces
         #( #write_attributes )*
 
         #write_element_end
@@ -92,8 +96,6 @@ pub fn write(tag: &QName, ele_name: TokenStream, fields: &[Field], namespaces: &
         strong_xml::log_finish_writing!(#ele_name);
     }
 }
-
-
 
 fn write_attrs(tag: &QName, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let to_str = to_str(ty);
@@ -122,18 +124,23 @@ fn write_attrs(tag: &QName, name: &Ident, ty: &Type, ele_name: &TokenStream) -> 
     }
 }
 
+fn write_namespaces(namespaces: &NamespaceDefs) -> TokenStream {
+    namespaces
+        .values()
+        .map(|namespace_def| {
+            let namespace = namespace_def.prefix();
 
-fn write_namespaces(namespaces: &Namespaces) -> TokenStream {
-    namespaces.iter().map(|(prefix, ns)|{
-        let prefix = if let Some(prefix) = prefix {
-            quote!(Some(#prefix))
-        } else {
-            quote!(None)
-        };
-        quote! {
-            writer.write_namespace_declaration(#prefix, #ns)?;
-        }
-    }).collect()
+            let prefix = if let Some(prefix) = namespace_def.prefix() {
+                quote!(Some(#prefix))
+            } else {
+                quote!(None)
+            };
+
+            quote! {
+                writer.write_namespace_declaration(#prefix, #namespace)?;
+            }
+        })
+        .collect()
 }
 
 fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {

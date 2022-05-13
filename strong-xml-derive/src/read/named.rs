@@ -2,13 +2,9 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{Ident, LitStr};
 
-use crate::types::{Field, Type, QName};
+use crate::types::{Field, QName, Type};
 
-pub fn read(
-    tag: &QName,
-    ele_name: TokenStream,
-    fields: &[Field],
-) -> TokenStream {
+pub fn read(tag: &QName, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
     let init_fields = fields.iter().map(|field| match field {
         Field::Attribute { bind, ty, .. }
         | Field::Child { bind, ty, .. }
@@ -75,9 +71,7 @@ pub fn read(
     });
 
     let read_text_fields = fields.iter().filter_map(|field| match field {
-        Field::Text { bind, ty, name, .. } => {
-            Some(read_text(&tag, bind, name, ty, &ele_name))
-        }
+        Field::Text { bind, ty, name, .. } => Some(read_text(&tag, bind, name, ty, &ele_name)),
         _ => None,
     });
 
@@ -204,7 +198,7 @@ fn read_text(
     ele_name: &TokenStream,
 ) -> TokenStream {
     let from_str = from_str(ty);
-    
+
     if ty.is_vec() {
         panic!("`text` attribute doesn't support Vec.");
     } else {

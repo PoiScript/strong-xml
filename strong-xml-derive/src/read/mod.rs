@@ -13,13 +13,10 @@ pub fn impl_read(element: Element) -> TokenStream {
             name: ele_name,
             variants,
         } => {
-            
-            let tags = variants
-                .iter()
-                .map(|variant| match variant {
-                    Fields::Newtype { tags, .. } => tags.iter().cloned().collect(),
-                    Fields::Named { tag, .. } => vec!(tag.clone())
-                });
+            let tags = variants.iter().map(|variant| match variant {
+                Fields::Newtype { tags, .. } => tags.iter().cloned().collect(),
+                Fields::Named { tag, .. } => vec![tag.clone()],
+            });
 
             let read = variants.iter().map(|variant| match variant {
                 Fields::Named {

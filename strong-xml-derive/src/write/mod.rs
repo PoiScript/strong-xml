@@ -31,12 +31,7 @@ pub fn impl_write(element: Element) -> TokenStream {
                     name,
                     fields,
                     namespaces,
-                } => named::write(
-                    tag,
-                    quote!( #ele_name::#name ),
-                    &fields,
-                    &namespaces,
-                ),
+                } => named::write(tag, quote!( #ele_name::#name ), &fields, &namespaces),
                 Fields::Newtype { name, .. } => newtype::write(quote!( #ele_name::#name )),
             });
 

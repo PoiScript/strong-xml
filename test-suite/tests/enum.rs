@@ -34,7 +34,6 @@ enum CD {
     D(D),
 }
 
-
 #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
 enum ABCDEFG {
     #[xml(tag = "a", tag = "b")]
@@ -56,8 +55,6 @@ enum ABCDEFG {
         bar: bool,
     },
 }
-
-
 
 #[test]
 fn test() -> XmlResult<()> {

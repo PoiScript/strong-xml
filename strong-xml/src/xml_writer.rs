@@ -61,12 +61,7 @@ impl<W: Write> XmlWriter<W> {
         write!(self.inner, ">")
     }
 
-    pub fn write_flatten_text(
-        &mut self,
-        tag: &str,
-        content: &str,
-        is_cdata: bool,
-    ) -> Result<()> {
+    pub fn write_flatten_text(&mut self, tag: &str, content: &str, is_cdata: bool) -> Result<()> {
         self.write_element_start(tag)?;
         self.write_element_end_open()?;
         if is_cdata {

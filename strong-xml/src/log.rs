@@ -42,7 +42,6 @@ macro_rules! log_finish_reading_field {
     };
 }
 
-
 #[macro_export]
 #[doc(hidden)]
 macro_rules! make_tag {
