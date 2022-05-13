@@ -22,7 +22,7 @@ pub fn impl_read(element: Element) -> TokenStream {
                     tag,
                     name,
                     fields,
-                    namespaces,
+                    namespaces: _,
                 } => named::read(&tag, quote!(#ele_name::#name), &fields),
                 Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#ele_name::#name)),
             });
@@ -49,7 +49,7 @@ pub fn impl_read(element: Element) -> TokenStream {
                 tag,
                 name,
                 fields,
-                namespaces,
+                namespaces: _,
             } => named::read(&tag, quote!(#name), &fields),
             Fields::Newtype { name, ty, .. } => newtype::read(&ty, quote!(#name)),
         },

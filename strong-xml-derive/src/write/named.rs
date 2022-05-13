@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use syn::Ident;
 
-use crate::types::{Field, NamespaceDef, NamespaceDefs, QName, Type};
+use crate::types::{Field, NamespaceDefs, QName, Type};
 
 pub fn write(
     tag: &QName,

@@ -1,6 +1,6 @@
-use std::collections::BTreeMap;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use std::collections::BTreeMap;
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;

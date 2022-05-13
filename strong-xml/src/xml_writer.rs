@@ -143,8 +143,8 @@ impl<W: Write> XmlWriter<W> {
     ) -> Result<()> {
         use std::io::{Error, ErrorKind};
 
-        let set_prefixes = if let Some(blah) = self.set_prefixes.last_mut() {
-            blah
+        let set_prefixes = if let Some(prefixes) = self.set_prefixes.last_mut() {
+            prefixes
         } else {
             return Err(Error::new(
                 ErrorKind::Other,

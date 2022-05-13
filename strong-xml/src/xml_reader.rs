@@ -158,7 +158,7 @@ impl<'a> XmlReader<'a> {
                     span,
                 }) if end_tag.is_some() => {
                     let end_tag = end_tag.unwrap();
-                    let tag = &span[2..span.len() - 1];// remove `</` and `>`
+                    let tag = &span[2..span.len() - 1]; // remove `</` and `>`
                     if tag == end_tag {
                         self.next();
                         return Ok(None);
