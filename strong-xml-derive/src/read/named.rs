@@ -1,10 +1,10 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, LitStr};
+use syn::Ident;
 
-use crate::types::{Field, Type};
+use crate::types::{Field, QName, Type};
 
-pub fn read(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
+pub fn read(tag: &QName, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
     let init_fields = fields.iter().map(|field| match field {
         Field::Attribute { bind, ty, .. }
         | Field::Child { bind, ty, .. }
@@ -167,7 +167,7 @@ fn return_value(
 }
 
 fn read_attrs(
-    tag: &LitStr,
+    tag: &QName,
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -191,7 +191,7 @@ fn read_attrs(
 }
 
 fn read_text(
-    tag: &LitStr,
+    tag: &QName,
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -214,7 +214,7 @@ fn read_text(
 }
 
 fn read_children(
-    tags: &[LitStr],
+    tags: &[QName],
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,
@@ -242,7 +242,7 @@ fn read_children(
 }
 
 fn read_flatten_text(
-    tag: &LitStr,
+    tag: &QName,
     bind: &Ident,
     name: &TokenStream,
     ty: &Type,

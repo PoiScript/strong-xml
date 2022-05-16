@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
+use std::collections::BTreeMap;
 use syn::{Lit::*, Meta::*, *};
 
 use crate::utils::elide_type_lifetimes;
@@ -28,9 +29,10 @@ pub enum Fields {
     /// }
     /// ```
     Named {
-        tag: LitStr,
+        tag: QName,
         name: Ident,
         fields: Vec<Field>,
+        namespaces: NamespaceDefs,
     },
     /// Newtype struct or newtype variant
     ///
@@ -46,9 +48,10 @@ pub enum Fields {
     /// }
     /// ```
     Newtype {
-        tags: Vec<LitStr>,
+        tags: Vec<QName>,
         name: Ident,
         ty: Type,
+        namespaces: NamespaceDefs,
     },
 }
 
@@ -65,7 +68,7 @@ pub enum Field {
         name: TokenStream,
         bind: Ident,
         ty: Type,
-        tag: LitStr,
+        tag: QName,
         default: bool,
     },
     /// Child(ren) Field
@@ -81,7 +84,8 @@ pub enum Field {
         bind: Ident,
         ty: Type,
         default: bool,
-        tags: Vec<LitStr>,
+        tags: Vec<QName>,
+        namespaces: NamespaceDefs,
     },
     /// Text Field
     ///
@@ -110,7 +114,7 @@ pub enum Field {
         bind: Ident,
         ty: Type,
         default: bool,
-        tag: LitStr,
+        tag: QName,
         is_cdata: bool,
     },
 }
@@ -136,6 +140,19 @@ pub enum Type {
     OptionBool,
 }
 
+#[derive(Clone)]
+pub enum QName {
+    Prefixed(LitStr),
+    Unprefixed(LitStr),
+}
+
+pub struct NamespaceDef {
+    prefix: Option<String>,
+    namespace: String,
+}
+
+pub type NamespaceDefs = BTreeMap<Option<String>, NamespaceDef>;
+
 impl Element {
     pub fn parse(input: DeriveInput) -> Element {
         match input.data {
@@ -160,15 +177,53 @@ impl Fields {
     pub fn parse(fields: syn::Fields, attrs: Vec<Attribute>, name: Ident) -> Fields {
         // Finding `tag` attribute
         let mut tags = Vec::new();
+        let mut namespaces: NamespaceDefs = BTreeMap::default();
 
         for meta in attrs.into_iter().filter_map(get_xml_meta).flatten() {
             match meta {
                 NestedMeta::Meta(NameValue(m)) if m.path.is_ident("tag") => {
                     if let Str(lit) = m.lit {
-                        tags.push(lit);
+                        match QName::parse(lit) {
+                            Ok(q) => tags.push(q),
+                            Err(e) => panic!("{}", e),
+                        }
                     } else {
                         panic!("Expected a string literal.");
                     }
+                }
+                NestedMeta::Meta(NameValue(MetaNameValue { lit, path, .. }))
+                    if path.is_ident("ns") =>
+                {
+                    let (prefix, namespace) = if let Str(lit) = lit {
+                        if let Some((pfx, ns)) = lit.value().split_once(": ") {
+                            (Some(pfx.to_string()), ns.to_string())
+                        } else {
+                            (None, lit.value().to_string())
+                        }
+                    } else {
+                        panic!("Expected a string literal.");
+                    };
+
+                    if namespaces.contains_key(&prefix) {
+                        if let Some(ref prefix) = prefix {
+                            panic!("namespace {} already defined", prefix);
+                        } else {
+                            panic!("default namespace already defined");
+                        };
+                    }
+
+                    if let Some(prefix) = &prefix {
+                        if prefix.contains(":") {
+                            panic!("prefix cannot contain `:`");
+                        }
+
+                        if prefix == "xml" && namespace != "http://www.w3.org/XML/1998/namespace" {
+                            panic!("xml prefix can only be bound to http://www.w3.org/XML/1998/namespace");
+                        } else if prefix.starts_with("xml") {
+                            panic!("prefix cannot start with `xml`");
+                        }
+                    }
+                    namespaces.insert(prefix.clone(), NamespaceDef { prefix, namespace });
                 }
                 _ => (),
             }
@@ -182,6 +237,7 @@ impl Fields {
             syn::Fields::Unit => Fields::Named {
                 name,
                 tag: tags.remove(0),
+                namespaces,
                 fields: Vec::new(),
             },
             syn::Fields::Unnamed(fields) => {
@@ -194,6 +250,7 @@ impl Fields {
                             name,
                             tags,
                             ty: Type::parse(field.ty),
+                            namespaces,
                         };
                     }
                 }
@@ -201,6 +258,7 @@ impl Fields {
                 Fields::Named {
                     name,
                     tag: tags.remove(0),
+                    namespaces,
                     fields: fields
                         .unnamed
                         .into_iter()
@@ -216,6 +274,7 @@ impl Fields {
             syn::Fields::Named(_) => Fields::Named {
                 name,
                 tag: tags.remove(0),
+                namespaces,
                 fields: fields
                     .into_iter()
                     .map(|field| {
@@ -260,7 +319,10 @@ impl Field {
                         } else if flatten_text_tag.is_some() {
                             panic!("`attr` attribute and `flatten_text` attribute is disjoint.");
                         } else {
-                            attr_tag = Some(lit);
+                            match QName::parse(lit) {
+                                Ok(q) => attr_tag = Some(q),
+                                Err(e) => panic!("{}", e),
+                            }
                         }
                     } else {
                         panic!("Expected a string literal.");
@@ -301,7 +363,10 @@ impl Field {
                         } else if flatten_text_tag.is_some() {
                             panic!("`child` attribute and `flatten_text` attribute is disjoint.");
                         } else {
-                            child_tags.push(lit);
+                            match QName::parse(lit) {
+                                Ok(q) => child_tags.push(q),
+                                Err(e) => panic!("{}", e),
+                            }
                         }
                     } else {
                         panic!("Expected a string literal.");
@@ -318,11 +383,22 @@ impl Field {
                         } else if flatten_text_tag.is_some() {
                             panic!("Duplicate `flatten_text` attribute.");
                         } else {
-                            flatten_text_tag = Some(lit);
+                            match QName::parse(lit) {
+                                Ok(q) => flatten_text_tag = Some(q),
+                                Err(e) => panic!("{}", e),
+                            }
                         }
                     } else {
                         panic!("Expected a string literal.");
                     }
+                }
+                NestedMeta::Meta(NameValue(m))
+                    if m.path
+                        .get_ident()
+                        .filter(|ident| ident.to_string().starts_with("ns"))
+                        .is_some() =>
+                {
+                    panic!("Namespace declaration not supported in this position");
                 }
                 _ => (),
             }
@@ -343,6 +419,7 @@ impl Field {
                 ty: Type::parse(field.ty),
                 default,
                 tags: child_tags,
+                namespaces: NamespaceDefs::new(),
             }
         } else if is_text {
             Field::Text {
@@ -471,6 +548,69 @@ impl Type {
         } else {
             Type::T(ty)
         }
+    }
+}
+use std::io::{Error, ErrorKind, Result};
+
+impl QName {
+    pub fn parse(name: LitStr) -> Result<QName> {
+        let space_count = name.value().matches(' ').count();
+        if space_count > 0 {
+            return Err(Error::new(ErrorKind::Other, "QName can not contain spaces"));
+        }
+
+        let colon_count = name.value().matches(':').count();
+        match colon_count {
+            0 => Ok(QName::Unprefixed(name)),
+            1 => Ok(QName::Prefixed(name)),
+            _ => Err(Error::new(
+                ErrorKind::Other,
+                "QName can only have a max of 1 colon",
+            )),
+        }
+    }
+
+    pub fn prefix(&self) -> Option<String> {
+        match self {
+            Self::Prefixed(name) => name
+                .value()
+                .split_once(":")
+                .map(|(prefix, _)| prefix.to_owned()),
+            Self::Unprefixed(_) => None,
+        }
+    }
+
+    pub fn local(&self) -> String {
+        match self {
+            Self::Prefixed(name) => name.value().split_once(":").unwrap().1.to_owned(),
+            Self::Unprefixed(name) => name.value(),
+        }
+    }
+}
+
+impl ToString for QName {
+    fn to_string(&self) -> String {
+        match self {
+            QName::Prefixed(tag) | QName::Unprefixed(tag) => tag.value(),
+        }
+    }
+}
+
+impl ToTokens for QName {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            QName::Prefixed(tag) | QName::Unprefixed(tag) => tag.to_tokens(tokens),
+        }
+    }
+}
+
+impl NamespaceDef {
+    pub fn prefix(&self) -> Option<&str> {
+        self.prefix.as_deref()
+    }
+
+    pub fn namespace(&self) -> &str {
+        &self.namespace
     }
 }
 

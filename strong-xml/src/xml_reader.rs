@@ -36,7 +36,7 @@ impl<'a> XmlReader<'a> {
     }
 
     #[inline]
-    pub fn read_text(&mut self, end_tag: &str) -> XmlResult<Cow<'a, str>> {
+    pub fn read_text(&mut self, end_tag: &'a str) -> XmlResult<Cow<'a, str>> {
         let mut res = None;
 
         while let Some(token) = self.next() {
@@ -56,14 +56,12 @@ impl<'a> XmlReader<'a> {
                     end: ElementEnd::Close(_, _),
                     span,
                 } => {
-                    let span = span.as_str(); // </tag>
-                    let tag = &span[2..span.len() - 1]; // remove `</` and `>`
-                    if end_tag == tag {
+                    if end_tag == &span[2..span.len() - 1] {
                         break;
                     } else {
                         return Err(XmlError::TagMismatch {
                             expected: end_tag.to_owned(),
-                            found: tag.to_owned(),
+                            found: span[2..span.len() - 1].to_owned(),
                         });
                     }
                 }
@@ -108,13 +106,22 @@ impl<'a> XmlReader<'a> {
     pub fn find_attribute(&mut self) -> XmlResult<Option<(&'a str, Cow<'a, str>)>> {
         if let Some(token) = self.tokenizer.peek() {
             match token {
-                Ok(Token::Attribute { span, value, .. }) => {
-                    let value = value.as_str();
-                    let span = span.as_str(); // key="value"
-                    let key = &span[0..span.len() - value.len() - 3]; // remove `="`, value and `"`
-                    let value = Cow::Borrowed(value);
+                Ok(Token::Attribute {
+                    prefix,
+                    local,
+                    value,
+                    span,
+                }) => {
+                    let length = local.len()
+                        + if !prefix.is_empty() {
+                            prefix.len() + 1
+                        } else {
+                            0
+                        };
+                    let name = &span.as_str()[0..length];
+                    let value = Cow::Borrowed(value.as_str());
                     self.next();
-                    return Ok(Some((key, value)));
+                    return Ok(Some((name, value)));
                 }
                 Ok(Token::ElementEnd {
                     end: ElementEnd::Open,
@@ -151,15 +158,14 @@ impl<'a> XmlReader<'a> {
                     span,
                 }) if end_tag.is_some() => {
                     let end_tag = end_tag.unwrap();
-                    let span = span.as_str(); // </tag>
                     let tag = &span[2..span.len() - 1]; // remove `</` and `>`
                     if tag == end_tag {
                         self.next();
                         return Ok(None);
                     } else {
                         return Err(XmlError::TagMismatch {
-                            expected: end_tag.to_owned(),
-                            found: tag.to_owned(),
+                            expected: end_tag.to_string(),
+                            found: tag.to_string(),
                         });
                     }
                 }
@@ -239,7 +245,7 @@ impl<'a> XmlReader<'a> {
                 Token::ElementEnd {
                     end: ElementEnd::Close(_, _),
                     span,
-                } if end_tag == &span.as_str()[2..span.as_str().len() - 1] => {
+                } if end_tag == &span[2..span.len() - 1] => {
                     depth -= 1;
                     if depth == 0 {
                         return Ok(());

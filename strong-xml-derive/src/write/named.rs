@@ -1,10 +1,17 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Ident, LitStr};
+use syn::Ident;
 
-use crate::types::{Field, Type};
+use crate::types::{Field, NamespaceDefs, QName, Type};
 
-pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStream {
+pub fn write(
+    tag: &QName,
+    ele_name: TokenStream,
+    fields: &[Field],
+    namespaces: &NamespaceDefs,
+) -> TokenStream {
+    let write_namespaces = write_namespaces(namespaces);
+
     let write_attributes = fields.iter().filter_map(|field| match field {
         Field::Attribute { tag, bind, ty, .. } => Some(write_attrs(&tag, &bind, &ty, &ele_name)),
         _ => None,
@@ -81,6 +88,7 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
 
         writer.write_element_start(#tag)?;
 
+       #write_namespaces
         #( #write_attributes )*
 
         #write_element_end
@@ -89,7 +97,7 @@ pub fn write(tag: &LitStr, ele_name: TokenStream, fields: &[Field]) -> TokenStre
     }
 }
 
-fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
+fn write_attrs(tag: &QName, name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     let to_str = to_str(ty);
 
     if ty.is_vec() {
@@ -116,6 +124,25 @@ fn write_attrs(tag: &LitStr, name: &Ident, ty: &Type, ele_name: &TokenStream) ->
     }
 }
 
+fn write_namespaces(namespaces: &NamespaceDefs) -> TokenStream {
+    namespaces
+        .values()
+        .map(|namespace_def| {
+            let namespace = namespace_def.namespace();
+
+            let prefix = if let Some(prefix) = namespace_def.prefix() {
+                quote!(Some(#prefix))
+            } else {
+                quote!(None)
+            };
+
+            quote! {
+                writer.write_namespace_declaration(#prefix, #namespace)?;
+            }
+        })
+        .collect()
+}
+
 fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
     match ty {
         Type::OptionT(_) => quote! {
@@ -139,7 +166,7 @@ fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
         Type::T(_) => quote! {
             strong_xml::log_start_writing_field!(#ele_name, #name);
 
-            &#name.to_writer(&mut writer)?;
+            #name.to_writer(&mut writer)?;
 
             strong_xml::log_finish_writing_field!(#ele_name, #name);
         },
@@ -148,7 +175,7 @@ fn write_child(name: &Ident, ty: &Type, ele_name: &TokenStream) -> TokenStream {
 }
 
 fn write_text(
-    tag: &LitStr,
+    tag: &QName,
     name: &Ident,
     ty: &Type,
     ele_name: &TokenStream,
@@ -177,7 +204,7 @@ fn write_text(
 }
 
 fn write_flatten_text(
-    tag: &LitStr,
+    tag: &QName,
     name: &Ident,
     ty: &Type,
     ele_name: &TokenStream,
