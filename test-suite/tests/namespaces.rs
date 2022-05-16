@@ -1,11 +1,11 @@
 use strong_xml::{XmlRead, XmlResult, XmlWrite};
 
 #[test]
-fn test() -> XmlResult<()> {
+fn test_nested_namespaces() -> XmlResult<()> {
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
     #[xml(tag = "n:nested", ns = "n: http://www.example.com")]
     struct Nested {
-        #[xml(child = "nested")]
+        #[xml(child = "n:nested")]
         contents: Vec<Nested>,
     }
 
@@ -30,7 +30,7 @@ fn test() -> XmlResult<()> {
 }
 
 #[test]
-fn test2() -> XmlResult<()> {
+fn test_namespace_clashes() -> XmlResult<()> {
     #[derive(XmlWrite, XmlRead, PartialEq, Debug)]
     #[xml(
         tag = "n:nested",
