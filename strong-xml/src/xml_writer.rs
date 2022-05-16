@@ -24,6 +24,7 @@ impl<W: Write> XmlWriter<W> {
     }
 
     pub fn write_element_start(&mut self, tag: &str) -> Result<()> {
+        // Add new level to store set prefixes for this scope
         self.set_prefixes.push(BTreeSet::new());
         write!(self.inner, "<{}", tag)
     }
@@ -34,6 +35,7 @@ impl<W: Write> XmlWriter<W> {
         ns: &'static str,
     ) -> Result<()> {
         if !self.is_prefix_defined_as(&prefix, ns) {
+            // let writer know that there has been a prefix that has been re/defined.
             self.push_changed_namespace(prefix, ns)?;
             if let Some(prefix) = prefix {
                 write!(self.inner, r#" xmlns:{}="{}""#, prefix, xml_escape(ns))
@@ -74,11 +76,13 @@ impl<W: Write> XmlWriter<W> {
     }
 
     pub fn write_element_end_close(&mut self, tag: &str) -> Result<()> {
+        // Restore the previous namespace declarations
         self.pop_changed_namespaces()?;
         write!(self.inner, "</{}>", tag)
     }
 
     pub fn write_element_end_empty(&mut self) -> Result<()> {
+        // Restore the previous namespace declarations
         self.pop_changed_namespaces()?;
         write!(self.inner, "/>")
     }
@@ -105,6 +109,9 @@ impl<W: Write> XmlWriter<W> {
 
     fn pop_changed_namespaces(&mut self) -> Result<()> {
         use std::io::{Error, ErrorKind};
+
+        // Go and get the current set_prefixes for this scope
+        // and pop of the last namespace for each prefix
         if let Some(set_prefixes) = self.set_prefixes.pop() {
             set_prefixes
                 .iter()
@@ -143,6 +150,7 @@ impl<W: Write> XmlWriter<W> {
     ) -> Result<()> {
         use std::io::{Error, ErrorKind};
 
+        // Get the current prefix scope off of the stack
         let set_prefixes = if let Some(prefixes) = self.set_prefixes.last_mut() {
             prefixes
         } else {
@@ -152,6 +160,8 @@ impl<W: Write> XmlWriter<W> {
             ));
         };
 
+        // Push prefix onto stack for namespace 
+        // or create new stack with namespace as only element
         if let Some(v) = self.used_namespaces.get_mut(&prefix) {
             v.push(namespace);
         } else {
